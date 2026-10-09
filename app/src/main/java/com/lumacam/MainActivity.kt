@@ -11,6 +11,7 @@ import androidx.activity.viewModels
 import com.lumacam.ui.CameraScreen
 import com.lumacam.ui.CameraViewModel
 import com.lumacam.ui.LumaTheme
+import com.lumacam.update.AppUpdater
 
 class MainActivity : ComponentActivity() {
     private val vm: CameraViewModel by viewModels()
@@ -44,6 +45,7 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         if (orientationListener.canDetectOrientation()) orientationListener.enable()
         vm.onVisible(true)
+        AppUpdater.onAppVisible(this)
     }
 
     override fun onStop() {

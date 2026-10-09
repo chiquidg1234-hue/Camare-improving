@@ -12,24 +12,59 @@ looks en tiempo real en la vista previa y el video, y foto multi-frame con el mi
 
 ## 1. Cómo instalar (QR de invitación)
 
-**Enlace fijo del APK:**
+**Página de descarga (la abre el QR):** <https://chiquidg1234-hue.github.io/Camare-improving/>
+(GitHub Pages, rama `gh-pages`; el código de la página está en `web/`).
+
+**Enlace directo del APK:**
 <https://github.com/chiquidg1234-hue/Camare-improving/releases/latest/download/LumaCam.apk>
 
-El QR (`docs/qr-descarga.png`, también en la Release) abre ese enlace. Sirve para ti y para
-cualquier persona a la que se lo pases, porque el repo es público.
+1. Escanea el QR (`docs/qr-descarga.png`, también en la Release) con la cámara del teléfono.
+2. **Si se abre una ventana con una ✕ arriba a la izquierda** (la que abren la cámara, Google
+   Lens o los lectores de QR): toca **⋮ → «Abrir en Chrome»**. Ver el problema más abajo.
+3. En Chrome toca **Descargar LumaCam** y, cuando Chrome pregunte, **Descargar / Descargar de
+   todos modos**.
+4. **Abrir → Instalar**. Si Android lo pide: permite *Instalar apps desconocidas* para Chrome;
+   si sale el aviso de app no verificada, *Instalar de todos modos*.
+5. Abre **LumaCam** y concede cámara y micrófono.
 
-1. Escanea el QR con la cámara del teléfono (o abre el enlace) y descarga **LumaCam.apk**.
-2. Abre el archivo descargado. Si MagicOS/Android lo bloquea: permite *Instalar apps
-   desconocidas* para el navegador o el gestor de archivos (Ajustes → Seguridad).
-3. Toca **Instalar**; si sale el aviso de app no verificada, *Instalar de todos modos*.
-4. Abre **LumaCam** y concede cámara y micrófono.
+### Por qué la descarga se quedaba en «Descargando… 37/37 MB»
 
-**Invitar a otra persona:** en la app, botón **compartir** (arriba) → muestra el QR en
-pantalla para que lo escaneen, o **Compartir enlace** para mandarlo por WhatsApp, etc.
+No es culpa del APK (por eso pasa igual con otras apps): es Chrome para Android.
 
-**Cómo se actualiza:** cada cambio en `main` hace que GitHub Actions compile el APK y reemplace
-la Release **lumacam**. El enlace y el QR son siempre los mismos; cada versión nueva se instala
-encima de la anterior sin perder ajustes (misma firma y número de versión creciente).
+- Desde 2025-2026 Chrome **no termina ninguna descarga de .apk hasta que el usuario toca
+  «Descargar» en un aviso de seguridad**. Llega al 100 % y espera esa respuesta (código de
+  Chromium: `ChromeDownloadManagerDelegate::ShouldCompleteDownload` →
+  `DangerousDownloadDialogBridge`).
+- Al escanear un QR, el enlace se abre en una **pestaña personalizada de Chrome** (la ventana con
+  ✕, flecha y ⋮). Si el enlace es directamente el `.apk`, esa ventana se convierte en la pantalla
+  «Descargando…», que no sabe mostrar ese aviso: la pantalla sólo entiende «en curso»,
+  «completa», «pausada» y «cancelada» (`DownloadInterstitialMediator`). En algunas versiones de
+  Chrome el aviso ni siquiera llega a mostrarse. Resultado: 37/37 MB y no pasa nada.
+- En la app Chrome normal el aviso sí aparece y la descarga termina.
+
+**Qué se cambió:**
+1. El QR ya no apunta al `.apk` sino a la **página de descarga**, que explica el paso «Abrir en
+   Chrome» (y en navegadores internos de WhatsApp/Instagram ofrece un botón que abre Chrome).
+2. **«Enviar la app»** (botón compartir de la app): manda el APK por Quick Share, Bluetooth o
+   WhatsApp. Quien lo recibe lo abre y toca Instalar, sin navegador.
+3. **Actualizaciones dentro de la app:** LumaCam lee `version.json` de la Release y, si hay
+   versión nueva, muestra «Nueva versión… Actualizar». Descarga el APK ella misma (sin Chrome),
+   comprueba el SHA-256 y Android pide confirmar. La primera vez pide permitir «Instalar apps
+   desconocidas» para LumaCam.
+
+**Para tu otra app**, lo mismo sirve: QR → página (no al `.apk`), abrir en Chrome, y enviar o
+actualizar el APK desde la propia app.
+
+**Si ya tienes una descarga trabada:** cierra la ventana con la ✕, abre Chrome → ⋮ → Descargas,
+borra LumaCam.apk si aparece a medias, y vuelve a abrir la página en Chrome.
+
+**Invitar a otra persona:** en la app, botón **compartir** (arriba) → QR de la página, **Enviar
+la app directamente** (lo más fácil si están cerca: Quick Share) o **Compartir enlace**.
+
+**Cómo se actualiza:** cada cambio en `main` hace que GitHub Actions compile el APK, reemplace la
+Release **lumacam** (`LumaCam.apk` + `version.json` + QR) y actualice la página. El enlace y el
+QR no cambian nunca; cada versión nueva se instala encima de la anterior sin perder ajustes
+(misma firma y número de versión creciente).
 
 Notas:
 - El APK es para teléfonos ARM de 64 bits (arm64-v8a): el Honor X7c y casi todos los Android
@@ -173,9 +208,14 @@ Marca cada una. Si algo falla, copia el **Diagnóstico** y dime qué pasó.
 - [ ] Con "Disparo automático": al mantener la pose sale la cuenta atrás 3-2-1 y se hace la foto.
 - [ ] Si el esqueleto sale desplazado respecto a la persona o con los lados cambiados, dímelo.
 
-**Invitar**
-- [ ] Botón compartir → se ve el QR; escanéalo con otro teléfono y comprueba que descarga e
-      instala LumaCam.
+**Invitar, descargar y actualizar**
+- [ ] Escanea `docs/qr-descarga.png`: se abre la página. Toca ⋮ → «Abrir en Chrome», luego
+      Descargar → aparece el aviso de Chrome → Descargar → Abrir → Instalar.
+- [ ] Botón compartir → **Enviar la app directamente** → Quick Share a otro teléfono → allí se
+      abre e instala.
+- [ ] Cuando haya una versión nueva en la Release: al abrir LumaCam sale «Nueva versión…
+      Actualizar» arriba del visor → Permitir (la primera vez) → descarga con % → Android pide
+      confirmar → la app se reinicia actualizada.
 
 **Controles**
 - [ ] Toca la imagen: aparece el círculo y enfoca/mide ahí.

@@ -9,14 +9,20 @@ multi-frame con alineación y reducción de ruido, y **modo POSES** que sugiere 
 
 <img src="docs/qr-descarga.png" alt="QR para descargar LumaCam" width="260">
 
-Escanea el QR con la cámara de un teléfono Android (o abre
-<https://github.com/chiquidg1234-hue/Camare-improving/releases/latest/download/LumaCam.apk>),
-abre el archivo descargado y toca **Instalar**. Si Android lo pide, permite *Instalar apps
-desconocidas* para el navegador. Desde la app, el botón **compartir** muestra este mismo QR para
-invitar a otra persona.
+Escanea el QR con un teléfono Android (abre <https://chiquidg1234-hue.github.io/Camare-improving/>)
+y sigue los 3 pasos:
 
-Cada vez que se sube un cambio a `main`, GitHub Actions compila el APK y actualiza la Release
-**lumacam** (el enlace y el QR no cambian nunca).
+1. Si se abre una ventana con una **✕** arriba (la del lector de QR), toca **⋮ → Abrir en Chrome**.
+   En esa ventana Chrome deja los `.apk` en «Descargando… 100%» sin terminar.
+2. **Descargar LumaCam** → cuando Chrome pregunte, **Descargar**.
+3. **Abrir → Instalar** (permite *Instalar apps desconocidas* si lo pide).
+
+Ya instalada, LumaCam **se actualiza sola** (aviso «Actualizar» dentro de la app) y el botón
+**compartir** permite **enviar la app** a otro teléfono por Quick Share, Bluetooth o WhatsApp.
+
+Cada cambio en `main` hace que GitHub Actions compile el APK, actualice la Release **lumacam**
+(`LumaCam.apk` + `version.json`) y la página de descarga. Enlace directo del APK:
+<https://github.com/chiquidg1234-hue/Camare-improving/releases/latest/download/LumaCam.apk>
 
 ## Más información
 

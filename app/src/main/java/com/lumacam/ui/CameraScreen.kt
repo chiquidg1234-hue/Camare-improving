@@ -207,6 +207,7 @@ private fun CameraContent(vm: CameraViewModel, state: UiState) {
                 )
             }
             Column(Modifier.align(Alignment.TopStart).padding(8.dp)) {
+                UpdateBanner(Modifier.padding(bottom = 6.dp))
                 state.warnings.filter { it !in dismissed }.forEach { w ->
                     WarningBanner(w) { dismissed += w }
                     Spacer(Modifier.height(6.dp))

@@ -20,10 +20,15 @@ android {
         versionCode = 100 + buildNumber
         versionName = "0.2.$buildNumber"
 
-        // Enlace fijo de descarga del último APK (GitHub Releases); lo usa el QR de "Invitar".
+        // Enlaces fijos (GitHub Releases + GitHub Pages).
         val repo = System.getenv("GITHUB_REPOSITORY") ?: "chiquidg1234-hue/Camare-improving"
+        val (owner, repoName) = repo.split("/", limit = 2)
         buildConfigField("String", "DOWNLOAD_URL", "\"https://github.com/$repo/releases/latest/download/LumaCam.apk\"")
         buildConfigField("String", "RELEASES_URL", "\"https://github.com/$repo/releases/latest\"")
+        // Página de descarga con los pasos (la abre el QR de "Invitar").
+        buildConfigField("String", "INVITE_URL", "\"https://${owner.lowercase()}.github.io/$repoName/\"")
+        // Versión publicada; la app la consulta para actualizarse sola.
+        buildConfigField("String", "VERSION_URL", "\"https://github.com/$repo/releases/latest/download/version.json\"")
 
         // Sólo ARM de 64 bits (Honor X7c y casi todos los Android actuales): el APK pesa mucho
         // menos al no llevar las librerías de ML Kit para otras arquitecturas.

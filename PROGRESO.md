@@ -1,5 +1,23 @@
 # PROGRESO — LumaCam
 
+## Sesión 3 (2026-10-09, tarde): la descarga del QR se quedaba en «Descargando… 100%»
+
+- [x] Causa (leyendo el código de Chromium): Chrome en Android retiene toda descarga `.apk` al
+      100 % hasta que el usuario acepta un aviso; dentro de la pestaña personalizada que abre el
+      lector de QR, la pantalla «Descargando…» no muestra ese aviso y se queda esperando.
+- [x] Página de descarga en GitHub Pages (`web/` → rama `gh-pages`), con los pasos y el atajo
+      «Abrir en Chrome». El QR (`docs/qr-descarga.png` y el de la app) apunta a la página.
+- [x] «Enviar la app»: comparte el APK instalado (FileProvider) por Quick Share/Bluetooth/WhatsApp.
+- [x] Actualización dentro de la app: `version.json` en la Release (versión leída del APK con
+      aapt2, tamaño y SHA-256) → descarga directa a una sesión de `PackageInstaller`.
+- [x] CI: publica `version.json`, sincroniza la página y comprueba que página, APK y
+      version.json responden.
+
+Pendiente: probar en el teléfono la página (paso «Abrir en Chrome»), «Enviar la app» y la
+primera actualización dentro de la app.
+
+---
+
 ## Sesión 2 (2026-10-09, día): repo nuevo, app descargable con QR y modo POSES
 
 - [x] Proyecto movido a `chiquidg1234-hue/Camare-improving` (rama `main`, historial completo).

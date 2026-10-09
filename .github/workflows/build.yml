@@ -41,14 +41,29 @@ jobs:
           ./gradlew assembleRelease 2>&1 | tee build.log
           exit ${PIPESTATUS[0]}
 
-      - name: Preparar APK
-        run: cp app/build/outputs/apk/release/app-release.apk LumaCam.apk
+      - name: Preparar APK y version.json
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk LumaCam.apk
+          # Versión real del APK (la que compara la app para actualizarse sola).
+          AAPT2=$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)
+          BADGING=$("$AAPT2" dump badging LumaCam.apk | head -1)
+          CODE=$(echo "$BADGING" | sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p")
+          NAME=$(echo "$BADGING" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")
+          SIZE=$(stat -c %s LumaCam.apk)
+          SHA=$(sha256sum LumaCam.apk | cut -d' ' -f1)
+          test -n "$CODE" && test -n "$NAME"
+          cat > version.json <<EOF
+          {"versionCode": $CODE, "versionName": "$NAME", "apkUrl": "https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/LumaCam.apk", "size": $SIZE, "sha256": "$SHA"}
+          EOF
+          cat version.json
 
       - name: Subir APK (artefacto)
         uses: actions/upload-artifact@v4
         with:
           name: LumaCam-apk
-          path: LumaCam.apk
+          path: |
+            LumaCam.apk
+            version.json
           if-no-files-found: error
 
       - name: Pruebas unitarias de la app
@@ -68,30 +83,64 @@ jobs:
             head -300 app/build/reports/lint-results-debug.txt
           fi
 
-      # Sólo desde main: Release "lumacam" con enlace fijo
-      # https://github.com/<repo>/releases/latest/download/LumaCam.apk (es el que abre el QR).
+      # Sólo desde main: Release "lumacam" con enlaces fijos
+      # https://github.com/<repo>/releases/latest/download/LumaCam.apk y .../version.json
+      # (la app lee version.json para actualizarse sola).
       - name: Publicar en Releases
         if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp docs/qr-descarga.png LumaCam-QR.png
-          cat > notas-release.md <<'EOF'
-          **Para instalar LumaCam en Android:**
+          PAGE="https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${GITHUB_REPOSITORY#*/}/"
+          cat > notas-release.md <<EOF
+          **Para instalar LumaCam en Android:** abre $PAGE y sigue los 3 pasos (o escanea LumaCam-QR.png).
 
-          1. Escanea el código QR (LumaCam-QR.png) con la cámara del teléfono, o toca **LumaCam.apk** aquí abajo.
-          2. Cuando termine la descarga, ábrela. Si Android lo pide, permite *Instalar apps desconocidas* para el navegador o el gestor de archivos.
-          3. Toca **Instalar**. Si aparece un aviso de app no verificada, elige *Instalar de todos modos*.
+          - Si abriste el enlace desde la cámara o un lector de QR (ventana con una ✕ arriba), toca ⋮ → **Abrir en Chrome** antes de descargar: en esa ventana Chrome deja los .apk en «Descargando… 100%» sin terminar.
+          - Al terminar: **Abrir** → **Instalar** (permite *Instalar apps desconocidas* si lo pide).
 
-          Cada versión nueva se instala encima de la anterior sin perder ajustes.
-          Desde la app puedes invitar a otra persona con el botón de compartir (muestra este mismo QR).
+          Si ya tienes LumaCam, la app avisa de la versión nueva y se actualiza sola. Para invitar a alguien: botón Compartir de la app → **Enviar la app** (Quick Share, Bluetooth o WhatsApp).
           EOF
           gh release delete lumacam --yes --cleanup-tag || true
-          gh release create lumacam LumaCam.apk LumaCam-QR.png \
+          gh release create lumacam LumaCam.apk version.json LumaCam-QR.png \
             --target "${{ github.sha }}" \
-            --title "LumaCam 0.2.${{ github.run_number }}" \
+            --title "LumaCam $(sed -n 's/.*"versionName": "\([^"]*\)".*/\1/p' version.json)" \
             --notes-file notas-release.md \
             --latest
+
+      # Página de descarga (web/) en la rama gh-pages: https://<usuario>.github.io/<repo>/
+      - name: Publicar página de descarga
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git fetch --depth 1 origin gh-pages; then
+            git worktree add pages FETCH_HEAD
+          else
+            git worktree add --orphan -b gh-pages pages
+          fi
+          find pages -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -r web/. pages/
+          touch pages/.nojekyll
+          cd pages
+          git add -A
+          if git diff --cached --quiet; then
+            echo "La página no cambió."
+          else
+            git commit -m "Página de descarga desde ${GITHUB_SHA::7}"
+            git push origin HEAD:gh-pages
+          fi
+
+      - name: Comprobar página y enlaces
+        if: github.ref == 'refs/heads/main'
+        run: |
+          PAGE="https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${GITHUB_REPOSITORY#*/}/"
+          for url in "$PAGE" \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/version.json" \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/LumaCam.apk"; do
+            echo "$(curl -sL -r 0-0 -o /dev/null -w '%{http_code}' "$url") $url"
+          done
+          curl -sL "https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/version.json"; echo
 
       - name: Subir informes (lint y pruebas)
         if: always()
