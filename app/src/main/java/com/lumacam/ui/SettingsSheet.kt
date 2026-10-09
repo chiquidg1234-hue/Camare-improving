@@ -200,13 +200,16 @@ private fun <T> ChoiceRow(label: String, options: List<Pair<T, String>>, selecte
 }
 
 @Composable
-fun DiagnosticsDialog(text: String, onDismiss: () -> Unit) {
+fun DiagnosticsDialog(text: String, benchmarkRunning: Boolean, onBenchmark: () -> Unit, onDismiss: () -> Unit) {
     val context = LocalContext.current
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Diagnóstico de la cámara") },
         text = {
             Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState())) {
+                TextButton(onClick = onBenchmark, enabled = !benchmarkRunning) {
+                    Text(if (benchmarkRunning) "Midiendo rendimiento…" else "Medir rendimiento del procesado")
+                }
                 Text(text.ifEmpty { "Abriendo la cámara…" }, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
             }
         },

@@ -22,10 +22,11 @@ la rama huérfana `ccr-c0c8f514-ds68bb` (sin historial común con el resto del r
   - Pipeline en CPU para la foto final idéntico al shader (contraste local, nitidez suave,
     WB, curva, saturación/vibrancia, LUT, viñeta), por franjas y resultado exacto.
   - Multi-frame: estimación de ruido, elección del frame más nítido, descarte de frames
-    movidos, alineación en pirámide + ajuste fino, fusión robusta anti-fantasmas, en paralelo.
+    movidos, alineación en pirámide + ajuste fino, **modelo afín por bloques** (corrige la
+    pequeña rotación de la mano), fusión robusta anti-fantasmas, en paralelo.
   - Planificador de captura según resolución y memoria (p. ej. 50 MP → 1 frame).
   - Planificador de zoom 0.6x (lógica pedida: 0.6x sólo si hay ultra gran angular real).
-  - 52 pruebas unitarias (todas pasan, también en CI).
+  - 57 pruebas unitarias (todas pasan, también en CI).
 - [x] App Android (Kotlin + CameraX 1.4.1 + Compose):
   - `LookSurfaceProcessor`: OpenGL ES (CameraEffect de CameraX) que aplica el look a la vista
     previa y al video; pirámide de luminancia desenfocada para el contraste local.
@@ -37,7 +38,9 @@ la rama huérfana `ccr-c0c8f514-ds68bb` (sin historial común con el resto del r
     botones, flash, HDR (extensiones de CameraX o modo de escena de Camera2 si existen),
     exposición larga para Nocturno, mantener pulsado = ver original, volumen = disparador.
   - Diagnóstico: pantalla con todas las cámaras de Camera2, rangos de zoom, cámaras físicas,
-    HDR/EIS/OIS, resoluciones, FPS, con botón Copiar.
+    HDR/EIS/OIS, resoluciones, FPS, con botón Copiar, y botón "Medir rendimiento" (fusión de
+    4×12 MP + look + JPEG con imágenes sintéticas) para ajustar tiempos al teléfono real.
+  - Cuadrícula de tercios (se puede quitar en Ajustes).
 - [x] Verificación del shader: `tools/shader-check/check.mjs` ejecuta los shaders reales de la
       app en WebGL (Chromium sin pantalla) y los compara con la CPU: los 5 looks coinciden con
       diferencia máxima de 1/255; con contraste local, media 0.36/255.

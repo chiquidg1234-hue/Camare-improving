@@ -101,6 +101,8 @@ data class UiState(
     val diagnostics: String = "",
     val bypass: Boolean = false,
     val focus: FocusIndicator? = null,
+    val benchmark: String? = null,
+    val benchmarkRunning: Boolean = false,
 ) {
     val look get() = Looks.byId(settings.lookId)
     val onUltraWide: Boolean
@@ -167,6 +169,8 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             if (!probed) {
                 probed = true
                 caps = withContext(Dispatchers.IO) { DeviceProbe.probe(getApplication()) }
+                // Al iniciar: rangos de zoom (CONTROL_ZOOM_RATIO_RANGE) y cámaras físicas al log.
+                DeviceProbe.report(caps).lines().forEach { android.util.Log.i("LumaCam", it) }
                 val usable = try {
                     session.usableCameraIds()
                 } catch (t: Throwable) {
@@ -209,7 +213,10 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         val o = owner ?: return
         val sp = surfaceProvider ?: return
         val id = _state.value.currentCameraId ?: return
+        // Al cambiar de modo o de ajuste se conserva el zoom actual (CameraX lo reinicia).
+        val keepZoom = zoomAfter ?: _state.value.zoomRatio.takeIf { _state.value.cameraReady && observedCamera != null }
         bindJob?.cancel()
+        _state.update { it.copy(cameraReady = false) }
         bindJob = viewModelScope.launch {
             val s = settings
             val glOk = session.processor.ready.await()
@@ -234,7 +241,10 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 removeZoomObserver()
                 val result = session.bind(o, req, sp)
                 observeCamera()
-                zoomAfter?.let { session.setZoomRatio(it) }
+                keepZoom?.let { z ->
+                    val zs = session.camera?.cameraInfo?.zoomState?.value
+                    session.setZoomRatio(if (zs != null) z.coerceIn(zs.minZoomRatio, zs.maxZoomRatio) else z)
+                }
                 val bindWarnings = result.warnings.toMutableList()
                 if (!glOk) {
                     bindWarnings += "OpenGL no arrancó (${session.processor.initError}); la vista previa va sin look, la foto sí lo lleva."
@@ -549,6 +559,23 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---------- Diagnóstico ----------
+
+    fun runBenchmark() {
+        if (_state.value.benchmarkRunning || _state.value.capture != null) return
+        _state.update { it.copy(benchmarkRunning = true, benchmark = "Midiendo… (unos segundos)") }
+        viewModelScope.launch {
+            val text = try {
+                com.lumacam.photo.Benchmark.run(resolvedLook())
+            } catch (t: OutOfMemoryError) {
+                "Sin memoria suficiente para la prueba de 12 MP"
+            } catch (t: kotlinx.coroutines.CancellationException) {
+                throw t
+            } catch (t: Throwable) {
+                "Error en la prueba: ${t.message}"
+            }
+            _state.update { it.copy(benchmarkRunning = false, benchmark = text) }
+        }
+    }
 
     private fun buildDiagnostics(result: BindResult, vendorModes: List<VendorMode>, glOk: Boolean): String = buildString {
         val s = settings

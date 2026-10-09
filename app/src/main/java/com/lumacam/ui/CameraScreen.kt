@@ -245,7 +245,10 @@ private fun CameraContent(vm: CameraViewModel, state: UiState) {
     })
 
     if (showSettings) SettingsSheet(state, vm) { showSettings = false }
-    if (showDiagnostics) DiagnosticsDialog(state.diagnostics) { showDiagnostics = false }
+    if (showDiagnostics) {
+        val text = listOfNotNull(state.benchmark, state.diagnostics).joinToString("\n\n")
+        DiagnosticsDialog(text, state.benchmarkRunning, onBenchmark = vm::runBenchmark) { showDiagnostics = false }
+    }
 }
 
 @Composable
