@@ -153,10 +153,10 @@
   }
   if (webview) {
     show('webview', true);
-    var page = location.href.replace(/^https?:\/\//, '');
+    var here = location.href.split('#')[0];
     document.getElementById('open-chrome').href =
-      'intent://' + page + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' +
-      encodeURIComponent(location.href) + ';end';
+      'intent://' + here.replace(/^https?:\/\//, '') + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' +
+      encodeURIComponent(here) + ';end';
   }
   if (fromApp || webview) document.getElementById('step1').classList.add('attention');
 
