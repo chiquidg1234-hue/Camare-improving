@@ -8,8 +8,9 @@ on:
       - "**.md"
   workflow_dispatch:
 
+# contents: write para publicar el APK en Releases (enlace fijo del QR de invitación).
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: lumacam-${{ github.ref }}
@@ -18,7 +19,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -35,16 +36,19 @@ jobs:
           ./gradlew -p core test 2>&1 | tee core-test.log
           exit ${PIPESTATUS[0]}
 
-      - name: Compilar APK de depuración
+      - name: Compilar APK para instalar (release)
         run: |
-          ./gradlew assembleDebug 2>&1 | tee build.log
+          ./gradlew assembleRelease 2>&1 | tee build.log
           exit ${PIPESTATUS[0]}
 
-      - name: Subir APK
+      - name: Preparar APK
+        run: cp app/build/outputs/apk/release/app-release.apk LumaCam.apk
+
+      - name: Subir APK (artefacto)
         uses: actions/upload-artifact@v4
         with:
           name: LumaCam-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: LumaCam.apk
           if-no-files-found: error
 
       - name: Pruebas unitarias de la app
@@ -64,6 +68,31 @@ jobs:
             head -300 app/build/reports/lint-results-debug.txt
           fi
 
+      # Sólo desde main: Release "lumacam" con enlace fijo
+      # https://github.com/<repo>/releases/latest/download/LumaCam.apk (es el que abre el QR).
+      - name: Publicar en Releases
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp docs/qr-descarga.png LumaCam-QR.png
+          cat > notas-release.md <<'EOF'
+          **Para instalar LumaCam en Android:**
+
+          1. Escanea el código QR (LumaCam-QR.png) con la cámara del teléfono, o toca **LumaCam.apk** aquí abajo.
+          2. Cuando termine la descarga, ábrela. Si Android lo pide, permite *Instalar apps desconocidas* para el navegador o el gestor de archivos.
+          3. Toca **Instalar**. Si aparece un aviso de app no verificada, elige *Instalar de todos modos*.
+
+          Cada versión nueva se instala encima de la anterior sin perder ajustes.
+          Desde la app puedes invitar a otra persona con el botón de compartir (muestra este mismo QR).
+          EOF
+          gh release delete lumacam --yes --cleanup-tag || true
+          gh release create lumacam LumaCam.apk LumaCam-QR.png \
+            --target "${{ github.sha }}" \
+            --title "LumaCam 0.2.${{ github.run_number }}" \
+            --notes-file notas-release.md \
+            --latest
+
       - name: Subir informes (lint y pruebas)
         if: always()
         uses: actions/upload-artifact@v4
@@ -81,7 +110,7 @@ jobs:
           for f in core-test.log build.log unit-test.log lint.log; do
             [ -f "$f" ] || continue
             echo "===== $f ====="
-            grep -E "^e: |^w: .*error|What went wrong|^> |FAILED|Error:|error:|Errors found" "$f" | head -80 || true
+            grep -E "^e: |^w: .*error|What went wrong|^> |FAILED|Error:|error:|Errors found|Could not" "$f" | head -80 || true
           done
           if [ -f app/build/reports/lint-results-debug.txt ]; then
             echo "===== lint-results-debug.txt ====="
