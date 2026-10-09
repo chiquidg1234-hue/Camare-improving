@@ -181,6 +181,11 @@ Marca cada una. Si algo falla, copia el **Diagnóstico** y dime qué pasó.
 - Vista previa 4:3 en foto (igual que la foto) y 16:9 en video.
 - Con flash o con un modo del fabricante activo se usa 1 frame.
 - Multi-frame sólo hasta 25 MP; por encima (modo 50 MP) se usa 1 frame.
+- Resolución por defecto "Estándar" = la **máxima resolución rápida** que da la cámara
+  (normalmente 12.5 MP con píxeles agrupados, que es la que mejor rinde con poca luz y permite
+  multi-frame). "Máxima" usa la resolución más alta que exista (p. ej. 50 MP) si MagicOS la
+  ofrece, pero sin multi-frame. Pediste máxima resolución **y** multi-frame; a 50 MP no caben las
+  dos en memoria en este teléfono, así que elegí la combinación que da mejor foto.
 
 ---
 
