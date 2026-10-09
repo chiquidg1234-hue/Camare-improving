@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Lente: anillo exterior ámbar, anillo interior verde azulado (teal & orange). -->
+    <path
+        android:fillColor="#FFFFA94D"
+        android:pathData="M54,30a24,24 0,1 1,0 48a24,24 0,1 1,0 -48zM54,36a18,18 0,1 0,0 36a18,18 0,1 0,0 -36z" />
+    <path
+        android:fillColor="#FF3FC1C9"
+        android:pathData="M54,42a12,12 0,1 1,0 24a12,12 0,1 1,0 -24z" />
+    <path
+        android:fillColor="#CCFFFFFF"
+        android:pathData="M50,46a4,4 0,1 1,0 8a4,4 0,1 1,0 -8z" />
+</vector>
