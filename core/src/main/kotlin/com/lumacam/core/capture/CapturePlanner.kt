@@ -16,6 +16,25 @@ data class CapturePlan(
 
 object CapturePlanner {
     const val MAX_FRAMES = 8
+
+    /**
+     * Frames que pide el usuario antes de mirar la memoria:
+     * multi-frame apagado, flash o modo del fabricante → 1; si no, el ajuste manual o el que
+     * sugiere el look.
+     */
+    fun requestedFrames(
+        multiFrame: Boolean,
+        vendorModeActive: Boolean,
+        flashEnabled: Boolean,
+        manualFrames: Int,
+        lookSuggested: Int,
+    ): Int = when {
+        !multiFrame -> 1
+        vendorModeActive -> 1 // el procesado del fabricante ya combina varias fotos
+        flashEnabled -> 1 // con flash la ráfaga no tiene sentido
+        manualFrames > 0 -> manualFrames.coerceAtMost(MAX_FRAMES)
+        else -> lookSuggested.coerceIn(1, MAX_FRAMES)
+    }
     /** Por encima de esto (p. ej. modo 50 MP sin binning) no se hace multi-frame. */
     const val MAX_MULTI_FRAME_PIXELS = 25_000_000L
 

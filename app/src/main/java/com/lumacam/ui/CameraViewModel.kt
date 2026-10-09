@@ -508,13 +508,13 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         val look = resolvedLook(s)
         val res = session.photoResolution ?: Size(4000, 3000)
         val vendorActive = (bind?.vendorMode ?: VendorMode.NONE) != VendorMode.NONE
-        val requested = when {
-            !s.multiFrame -> 1
-            vendorActive -> 1 // el modo del fabricante ya hace su propio multi-frame
-            s.flashMode != ImageCapture.FLASH_MODE_OFF -> 1 // con flash no tiene sentido la ráfaga
-            s.frames > 0 -> s.frames
-            else -> Looks.byId(s.lookId).suggestedFrames
-        }
+        val requested = CapturePlanner.requestedFrames(
+            multiFrame = s.multiFrame,
+            vendorModeActive = vendorActive,
+            flashEnabled = s.flashMode != ImageCapture.FLASH_MODE_OFF,
+            manualFrames = s.frames,
+            lookSuggested = Looks.byId(s.lookId).suggestedFrames,
+        )
         val capturePlan = CapturePlanner.plan(res.width, res.height, requested, memoryBudget())
         val n = capturePlan.frames
         viewModelScope.launch {

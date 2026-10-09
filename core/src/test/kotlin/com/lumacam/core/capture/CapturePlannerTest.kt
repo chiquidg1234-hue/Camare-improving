@@ -40,6 +40,16 @@ class CapturePlannerTest {
     }
 
     @Test
+    fun requestedFramesRules() {
+        assertEquals(1, CapturePlanner.requestedFrames(false, false, false, 0, 4))
+        assertEquals(1, CapturePlanner.requestedFrames(true, true, false, 6, 4))
+        assertEquals(1, CapturePlanner.requestedFrames(true, false, true, 6, 8))
+        assertEquals(6, CapturePlanner.requestedFrames(true, false, false, 6, 4))
+        assertEquals(8, CapturePlanner.requestedFrames(true, false, false, 0, 8))
+        assertEquals(CapturePlanner.MAX_FRAMES, CapturePlanner.requestedFrames(true, false, false, 20, 4))
+    }
+
+    @Test
     fun veryLowMemoryDownsamplesDecode() {
         val p = CapturePlanner.plan(12000, 9000, 1, 512L * 1024 * 1024)
         assertTrue(p.decodeSampleSize >= 2)
