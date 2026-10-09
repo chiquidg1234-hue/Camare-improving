@@ -28,6 +28,8 @@ data class AppSettings(
     val flashMode: Int = ImageCapture.FLASH_MODE_OFF,
     val front: Boolean = false,
     val grid: Boolean = true,
+    /** Look en la vista previa/video con OpenGL (si se apaga, sólo la foto lleva el look). */
+    val gpuPreview: Boolean = true,
 )
 
 class SettingsStore(context: Context) {
@@ -63,6 +65,7 @@ class SettingsStore(context: Context) {
             flashMode = p.getInt("flash_mode", d.flashMode),
             front = p.getBoolean("front", d.front),
             grid = p.getBoolean("grid", d.grid),
+            gpuPreview = p.getBoolean("gpu_preview", d.gpuPreview),
         )
     }
 
@@ -92,6 +95,7 @@ class SettingsStore(context: Context) {
             .putInt("flash_mode", s.flashMode)
             .putBoolean("front", s.front)
             .putBoolean("grid", s.grid)
+            .putBoolean("gpu_preview", s.gpuPreview)
             .apply()
     }
 

@@ -72,6 +72,8 @@ fun SettingsSheet(state: UiState, vm: CameraViewModel, onDismiss: () -> Unit) {
             SwitchRow("Bloquear balance de blancos (AWB-L)", state.awbLock) { vm.toggleAwbLock() }
             Hint("Toca la imagen para enfocar y medir la luz en ese punto. Mantén pulsado para ver la imagen original sin look.")
             SwitchRow("Cuadrícula (regla de tercios)", s.grid, vm::setGrid)
+            SwitchRow("Look en la vista previa y el video (GPU)", s.gpuPreview, vm::setGpuPreview)
+            if (!s.gpuPreview) Hint("Apagado: la vista previa y el video van sin look; la foto sí lo lleva.")
 
             // ---- Imagen ----
             SectionTitle("Ajustes de imagen (se suman al look)")

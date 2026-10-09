@@ -127,6 +127,9 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     private var zoomObserver: Observer<ZoomState>? = null
     private var observedCamera: Camera? = null
     private var probed = false
+    /** El vigilante desactivó el efecto porque no llegaban imágenes. */
+    private var effectDisabledByWatchdog = false
+    private var watchdogJob: Job? = null
 
     private val settings get() = _state.value.settings
 
@@ -157,6 +160,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         owner = null
         surfaceProvider = null
         bindJob?.cancel()
+        watchdogJob?.cancel()
         removeZoomObserver()
         session.unbind()
         _state.update { it.copy(cameraReady = false, recording = false) }
@@ -216,6 +220,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         // Al cambiar de modo o de ajuste se conserva el zoom actual (CameraX lo reinicia).
         val keepZoom = zoomAfter ?: _state.value.zoomRatio.takeIf { _state.value.cameraReady && observedCamera != null }
         bindJob?.cancel()
+        watchdogJob?.cancel()
         _state.update { it.copy(cameraReady = false) }
         bindJob = viewModelScope.launch {
             val s = settings
@@ -233,7 +238,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 videoQuality = s.videoQuality,
                 stabilization = s.stabilization,
                 vendorMode = if (s.vendorMode in vendorModes) s.vendorMode else VendorMode.NONE,
-                useEffect = glOk,
+                useEffect = glOk && s.gpuPreview && !effectDisabledByWatchdog,
                 fastBurst = s.multiFrame,
                 flashMode = s.flashMode,
                 targetRotation = targetRotation,
@@ -247,6 +252,9 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                     session.setZoomRatio(if (zs != null) z.coerceIn(zs.minZoomRatio, zs.maxZoomRatio) else z)
                 }
                 val bindWarnings = result.warnings.toMutableList()
+                if (effectDisabledByWatchdog && s.gpuPreview) {
+                    bindWarnings += "La vista previa con efectos no recibía imágenes en este teléfono y se desactivó; la foto sí lleva el look."
+                }
                 if (!glOk) {
                     bindWarnings += "OpenGL no arrancó (${session.processor.initError ?: "no respondió a tiempo"}); la vista previa va sin look, la foto sí lo lleva."
                 }
@@ -264,10 +272,29 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
                 applyCaptureOptions()
+                if (result.effectActive) startWatchdog()
             } catch (t: kotlinx.coroutines.CancellationException) {
                 throw t
             } catch (t: Throwable) {
                 _state.update { it.copy(cameraReady = false, message = "No se pudo abrir la cámara: ${t.message}") }
+            }
+        }
+    }
+
+    /**
+     * Si con el efecto OpenGL no se dibuja ningún frame en unos segundos (vista previa negra),
+     * se vuelve a abrir la cámara sin efecto. La foto sigue llevando el look (se hace en CPU).
+     */
+    private fun startWatchdog() {
+        watchdogJob?.cancel()
+        val start = session.processor.framesRendered
+        watchdogJob = viewModelScope.launch {
+            delay(3500)
+            val st = _state.value
+            val visible = owner?.lifecycle?.currentState?.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED) == true
+            if (st.cameraReady && visible && session.processor.framesRendered == start) {
+                effectDisabledByWatchdog = true
+                rebind()
             }
         }
     }
@@ -349,6 +376,11 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     fun setVendorMode(m: VendorMode) = updateSettings(rebindNeeded = true) { it.copy(vendorMode = m) }
 
     fun setGrid(on: Boolean) = updateSettings { it.copy(grid = on) }
+
+    fun setGpuPreview(on: Boolean) {
+        if (on) effectDisabledByWatchdog = false
+        updateSettings(rebindNeeded = true) { it.copy(gpuPreview = on) }
+    }
 
     fun setLongExposureNight(on: Boolean) {
         updateSettings { it.copy(longExposureNight = on) }

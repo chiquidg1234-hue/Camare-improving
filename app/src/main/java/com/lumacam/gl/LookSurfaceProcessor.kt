@@ -48,6 +48,10 @@ class LookSurfaceProcessor(assets: AssetManager) : SurfaceProcessor, SurfaceText
     val glesVersion: Int get() = renderer.glesVersion
 
     private val frameCounter = AtomicInteger()
+    private val totalFrames = java.util.concurrent.atomic.AtomicLong()
+
+    /** Frames dibujados desde que se creó el procesador. */
+    val framesRendered: Long get() = totalFrames.get()
 
     init {
         handler.post {
@@ -126,6 +130,7 @@ class LookSurfaceProcessor(assets: AssetManager) : SurfaceProcessor, SurfaceText
                 renderer.render(surface, outMatrix, ts, bp)
             }
             frameCounter.incrementAndGet()
+            totalFrames.incrementAndGet()
         } catch (t: Throwable) {
             Log.e(TAG, "Error dibujando frame", t)
         }
