@@ -197,7 +197,7 @@ private fun CameraContent(vm: CameraViewModel, state: UiState) {
                 }
             }
             Text(
-                "${state.previewFps} fps",
+                if (state.bind?.effectActive == true) "${state.previewFps} fps" else "sin look en vista previa",
                 color = Color.White.copy(alpha = 0.6f),
                 fontSize = 11.sp,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp),

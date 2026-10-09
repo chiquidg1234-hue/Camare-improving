@@ -65,6 +65,16 @@ la opción no aparece), exposición larga en el look Nocturno.
 **Diagnóstico (botón ⓘ):** lista todas las cámaras que ve Camera2, sus rangos de zoom
 (`CONTROL_ZOOM_RATIO_RANGE`), cámaras físicas, resoluciones, HDR/EIS/OIS, FPS y si OpenGL
 arrancó. Tiene botón **Copiar**: pégame ese texto mañana y ajusto la app a tu teléfono real.
+También tiene **"Medir rendimiento del procesado"**: mide en tu teléfono cuánto tarda la fusión
+de 4 fotos de 12 MP, el look y el JPEG (pégame también ese resultado).
+
+**Protecciones** (porque no pude probar en tu teléfono):
+- Si la vista previa con efectos OpenGL no recibe imágenes en ~3,5 s, la app la reabre sola sin
+  efectos y avisa (la foto sigue llevando el look). También hay un interruptor manual en Ajustes:
+  *"Look en la vista previa y el video (GPU)"*.
+- Si una combinación (look + estabilización, modo del fabricante, etc.) no es compatible, prueba
+  la siguiente en orden y te dice qué se desactivó.
+- Si sales de la app mientras procesa una foto, la foto se termina de guardar igual.
 
 ### Zoom 0.6x
 
@@ -88,6 +98,9 @@ Marca cada una. Si algo falla, copia el **Diagnóstico** y dime qué pasó.
 - [ ] La app abre, pide permisos y se ve la imagen. El contador de abajo a la derecha marca ~30 fps.
 - [ ] Sale el aviso de zoom 1.0x (o, si tu teléfono sí tuviera ultra gran angular, arranca en 0.6x).
 - [ ] Botón ⓘ: el diagnóstico dice "OpenGL: ES 3.0 OK" (o 2.0) y "look en vista previa: true".
+- [ ] En ⓘ toca "Medir rendimiento del procesado" y apunta los tiempos.
+- [ ] Si la vista previa se ve negra o aparece el aviso de que se desactivó el look en la vista
+      previa, dímelo (y copia el diagnóstico).
 
 **Cada look** (en foto y en video)
 - [ ] Natural: mejora sutil (más detalle y color, sin exagerar).
