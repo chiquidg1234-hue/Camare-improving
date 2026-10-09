@@ -16,7 +16,7 @@ data class CapturePlan(
 
 object CapturePlanner {
     const val MAX_FRAMES = 8
-    /** Por encima de esto (p. ej. modo 108 MP) no se hace multi-frame. */
+    /** Por encima de esto (p. ej. modo 50 MP sin binning) no se hace multi-frame. */
     const val MAX_MULTI_FRAME_PIXELS = 25_000_000L
 
     /**

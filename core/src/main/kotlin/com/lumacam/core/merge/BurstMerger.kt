@@ -12,6 +12,7 @@ import kotlin.math.max
 class BurstMerger(
     private val aligner: Aligner = Aligner(),
     private val merger: FrameMerger = FrameMerger(),
+    private val motionEstimator: MotionEstimator? = MotionEstimator(),
     /** Frames con nitidez menor que esta fracción de la mejor se descartan (salieron movidos). */
     private val minRelativeSharpness: Float = 0.45f,
 ) {
@@ -19,6 +20,7 @@ class BurstMerger(
         val refIndex: Int,
         val usedIndices: List<Int>,
         val shifts: List<Shift>,
+        val motions: List<Motion>,
         val noiseSigma: Float,
         val stats: FrameMerger.Stats,
     )
@@ -41,22 +43,27 @@ class BurstMerger(
 
         val refPyr = aligner.pyramid(lumas[refIndex], baseFactor)
         val shifts = ArrayList<Shift>()
+        val motions = ArrayList<Motion>()
         for ((n, k) in used.withIndex()) {
             if (k == refIndex) {
                 shifts += Shift.ZERO
+                motions += Motion.IDENTITY
             } else {
                 val coarse = aligner.alignPyramids(refPyr, aligner.pyramid(lumas[k], baseFactor), w)
-                shifts += aligner.refineFullRes(frames[refIndex], frames[k], coarse, baseFactor / 2 + 1)
+                val s = aligner.refineFullRes(frames[refIndex], frames[k], coarse, baseFactor / 2 + 1)
+                shifts += s
+                // Rotación/escala pequeña (mano sin estabilizador): modelo afín por bloques.
+                motions += motionEstimator?.estimate(frames[refIndex], frames[k], s) ?: Motion.of(s)
             }
             progress(0.15f + 0.25f * (n + 1) / used.size)
         }
 
         val sigma = ImageStats.noiseSigma(frames[refIndex])
         val usedFrames = used.map { frames[it] }
-        val stats = merger.merge(usedFrames, shifts, used.indexOf(refIndex), sigma, sink) { p ->
+        val stats = merger.merge(usedFrames, motions, used.indexOf(refIndex), sigma, sink) { p ->
             progress(0.4f + 0.6f * p)
         }
-        return Result(refIndex, used, shifts, sigma, stats)
+        return Result(refIndex, used, shifts, motions, sigma, stats)
     }
 
     companion object {

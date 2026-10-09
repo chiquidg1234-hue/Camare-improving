@@ -27,6 +27,7 @@ data class AppSettings(
     val sceneHdr: Boolean = false,
     val flashMode: Int = ImageCapture.FLASH_MODE_OFF,
     val front: Boolean = false,
+    val grid: Boolean = true,
 )
 
 class SettingsStore(context: Context) {
@@ -61,6 +62,7 @@ class SettingsStore(context: Context) {
             sceneHdr = p.getBoolean("scene_hdr", d.sceneHdr),
             flashMode = p.getInt("flash_mode", d.flashMode),
             front = p.getBoolean("front", d.front),
+            grid = p.getBoolean("grid", d.grid),
         )
     }
 
@@ -89,6 +91,7 @@ class SettingsStore(context: Context) {
             .putBoolean("scene_hdr", s.sceneHdr)
             .putInt("flash_mode", s.flashMode)
             .putBoolean("front", s.front)
+            .putBoolean("grid", s.grid)
             .apply()
     }
 

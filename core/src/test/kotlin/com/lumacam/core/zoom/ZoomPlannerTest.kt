@@ -7,7 +7,7 @@ import org.junit.Test
 
 class ZoomPlannerTest {
 
-    // Sensor principal típico de 1/1.67" con 108 MP (≈ 7.6 x 5.7 mm) y lente de 5.4 mm.
+    // Sensor principal típico (≈ 7.6 x 5.7 mm) con lente de 5.4 mm (ángulo de ~24 mm equivalentes).
     private fun main(id: String = "0", min: Float? = 1f, max: Float? = 10f, logical: Boolean = false, physical: List<String> = emptyList()) =
         CameraDescriptor(
             id = id, facing = Facing.BACK, focalLengthsMm = listOf(5.4f),
@@ -33,7 +33,7 @@ class ZoomPlannerTest {
 
     @Test
     fun singleUsefulCameraStartsAtOneWithWarning() {
-        // Caso esperado en el Honor X7c: principal + profundidad (no utilizable) + frontal.
+        // Caso esperado en el Honor X7c 5G: principal 50 MP + profundidad 2 MP (no utilizable) + frontal.
         val plan = ZoomPlanner.plan(listOf(main(), front, depth()))!!
         assertEquals("0", plan.cameraId)
         assertEquals(1f, plan.initialZoomRatio, 0f)

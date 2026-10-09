@@ -337,6 +337,8 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     fun setStabilization(on: Boolean) = updateSettings(rebindNeeded = true) { it.copy(stabilization = on) }
     fun setVendorMode(m: VendorMode) = updateSettings(rebindNeeded = true) { it.copy(vendorMode = m) }
 
+    fun setGrid(on: Boolean) = updateSettings { it.copy(grid = on) }
+
     fun setLongExposureNight(on: Boolean) {
         updateSettings { it.copy(longExposureNight = on) }
         applyCaptureOptions()
@@ -460,7 +462,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         val requested = when {
             !s.multiFrame -> 1
             vendorActive -> 1 // el modo del fabricante ya hace su propio multi-frame
-            s.flashMode == ImageCapture.FLASH_MODE_ON -> 1
+            s.flashMode != ImageCapture.FLASH_MODE_OFF -> 1 // con flash no tiene sentido la ráfaga
             s.frames > 0 -> s.frames
             else -> Looks.byId(s.lookId).suggestedFrames
         }

@@ -71,6 +71,7 @@ fun SettingsSheet(state: UiState, vm: CameraViewModel, onDismiss: () -> Unit) {
             SwitchRow("Bloquear exposición (AE-L)", state.aeLock) { vm.toggleAeLock() }
             SwitchRow("Bloquear balance de blancos (AWB-L)", state.awbLock) { vm.toggleAwbLock() }
             Hint("Toca la imagen para enfocar y medir la luz en ese punto. Mantén pulsado para ver la imagen original sin look.")
+            SwitchRow("Cuadrícula (regla de tercios)", s.grid, vm::setGrid)
 
             // ---- Imagen ----
             SectionTitle("Ajustes de imagen (se suman al look)")
@@ -106,7 +107,7 @@ fun SettingsSheet(state: UiState, vm: CameraViewModel, onDismiss: () -> Unit) {
                 onSelect = vm::setResolutionMode,
             )
             state.bind?.photoResolution?.let {
-                Hint("Resolución actual: ${it.width}x${it.height} (${String.format(Locale.US, "%.1f", it.width * it.height / 1e6)} MP). \"Máxima\" incluye modos lentos (p. ej. 108 MP) si el teléfono los ofrece; ahí no se usa multi-frame.")
+                Hint("Resolución actual: ${it.width}x${it.height} (${String.format(Locale.US, "%.1f", it.width * it.height / 1e6)} MP). \"Máxima\" incluye modos lentos (p. ej. 50 MP sin agrupar píxeles) si el teléfono los ofrece; ahí no se usa multi-frame.")
             }
             LabeledSlider(
                 label = "Calidad JPEG ${s.jpegQuality}",

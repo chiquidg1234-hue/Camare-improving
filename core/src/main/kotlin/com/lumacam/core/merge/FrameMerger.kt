@@ -33,18 +33,18 @@ class FrameMerger(private val config: Config = Config()) {
 
     /**
      * @param frames frames de igual tamaño.
-     * @param shifts desplazamiento de cada frame respecto a la referencia (el de la referencia es 0).
+     * @param motions movimiento de cada frame respecto a la referencia (el de la referencia es identidad).
      * @param noiseSigma ruido estimado de la referencia (0..255).
      */
     fun merge(
         frames: List<FrameSource>,
-        shifts: List<Shift>,
+        motions: List<Motion>,
         refIndex: Int,
         noiseSigma: Float,
         sink: FrameSink,
         progress: (Float) -> Unit = {},
     ): Stats {
-        require(frames.isNotEmpty() && frames.size == shifts.size)
+        require(frames.isNotEmpty() && frames.size == motions.size)
         val ref = frames[refIndex]
         val w = ref.width
         val h = ref.height
@@ -65,7 +65,7 @@ class FrameMerger(private val config: Config = Config()) {
         fun runStrip(worker: Worker, index: Int) {
             val y0 = index * stripMax
             val rows = min(stripMax, h - y0)
-            worker.process(frames, shifts, refIndex, low, high, invRange, y0, rows, sink, agg)
+            worker.process(frames, motions, refIndex, low, high, invRange, y0, rows, sink, agg)
             progress(done.incrementAndGet().toFloat() / strips)
         }
 
@@ -125,10 +125,10 @@ class FrameMerger(private val config: Config = Config()) {
         private val accB = FloatArray(stripMax * w)
         private val accW = FloatArray(stripMax * w)
         private val out = IntArray(stripMax * w)
-        private val readTmp = IntArray(padded * w)
+        private var readTmp = IntArray(padded * w)
 
         fun process(
-            frames: List<FrameSource>, shifts: List<Shift>, refIndex: Int,
+            frames: List<FrameSource>, motions: List<Motion>, refIndex: Int,
             low: Float, high: Float, invRange: Float,
             y0: Int, rows: Int, sink: FrameSink, agg: Aggregate,
         ) {
@@ -159,7 +159,7 @@ class FrameMerger(private val config: Config = Config()) {
 
             for (k in frames.indices) {
                 if (k == refIndex) continue
-                readShifted(frames[k], shifts[k], py0, prow, w, h, tgtBuf, valid, readTmp)
+                readTmp = readAligned(frames[k], motions[k], py0, prow, w, h, tgtBuf, valid, readTmp)
                 for (i in 0 until prow * w) {
                     diff[i] = if (valid[i]) ColorMath.lumaOf(tgtBuf[i]) - refLuma[i] else 0f
                 }
@@ -203,34 +203,52 @@ class FrameMerger(private val config: Config = Config()) {
     }
 
     /**
-     * Lee las filas [py0, py0+prow) de la referencia expresadas en el frame desplazado.
-     * Marca como inválidos los píxeles que caen fuera del frame.
+     * Construye las filas [py0, py0+prow) de la referencia tomadas del frame según su movimiento.
+     * Marca como inválidos los píxeles que caen fuera del frame. Devuelve el buffer temporal
+     * (puede crecer si la rotación obliga a leer más filas).
      */
-    private fun readShifted(
-        src: FrameSource, s: Shift, py0: Int, prow: Int, w: Int, h: Int,
-        dst: IntArray, valid: BooleanArray, tmp: IntArray,
-    ) {
-        val ty0 = py0 + s.dy
-        val first = max(ty0, 0)
-        val last = min(ty0 + prow, h) // exclusivo
+    private fun readAligned(
+        src: FrameSource, m: Motion, py0: Int, prow: Int, w: Int, h: Int,
+        dst: IntArray, valid: BooleanArray, tmpIn: IntArray,
+    ): IntArray {
         java.util.Arrays.fill(valid, 0, prow * w, false)
-        if (last <= first) return
+        val (lo0, hi0) = MotionEstimator.rowSpan(m, w, py0)
+        val (lo1, hi1) = MotionEstimator.rowSpan(m, w, py0 + prow - 1)
+        val first = max(0, py0 + min(lo0, lo1) - 1)
+        val last = min(h, py0 + prow + max(hi0, hi1) + 1) // exclusivo
+        if (last <= first) return tmpIn
         val n = last - first
-        val tmpOffset = (first - ty0) * w
-        // Leer al principio del buffer temporal y luego recolocar con el desplazamiento horizontal.
+        val tmp = if (tmpIn.size >= n * w) tmpIn else IntArray(n * w)
         src.readRows(first, n, tmp, 0)
-        for (r in 0 until n) {
-            val dRow = tmpOffset + r * w
-            val sRow = r * w
+        for (r in 0 until prow) {
+            val y = py0 + r
+            var fx = m.dx(0f, y.toFloat())
+            var fy = m.dy(0f, y.toFloat())
+            val dRow = r * w
             for (x in 0 until w) {
-                val sx = x + s.dx
-                if (sx in 0 until w) {
-                    dst[dRow + x] = tmp[sRow + sx]
+                val sx = x + Math.round(fx)
+                val sy = y + Math.round(fy)
+                if (sx in 0 until w && sy >= first && sy < last) {
+                    dst[dRow + x] = tmp[(sy - first) * w + sx]
                     valid[dRow + x] = true
                 }
+                fx += m.bx
+                fy += m.by
             }
         }
+        return tmp
     }
+
+    /** Compatibilidad: fusión con desplazamientos enteros. */
+    @JvmName("mergeShifts")
+    fun merge(
+        frames: List<FrameSource>,
+        shifts: List<Shift>,
+        refIndex: Int,
+        noiseSigma: Float,
+        sink: FrameSink,
+        progress: (Float) -> Unit = {},
+    ): Stats = merge(frames, shifts.map { Motion.of(it) }, refIndex, noiseSigma, sink, progress)
 
     /** Media 3x3 in-place (usa [tmp]); bordes replicados. */
     private fun box3(a: FloatArray, tmp: FloatArray, w: Int, h: Int) {

@@ -23,7 +23,7 @@ la rama huérfana `ccr-c0c8f514-ds68bb` (sin historial común con el resto del r
     WB, curva, saturación/vibrancia, LUT, viñeta), por franjas y resultado exacto.
   - Multi-frame: estimación de ruido, elección del frame más nítido, descarte de frames
     movidos, alineación en pirámide + ajuste fino, fusión robusta anti-fantasmas, en paralelo.
-  - Planificador de captura según resolución y memoria (p. ej. 108 MP → 1 frame).
+  - Planificador de captura según resolución y memoria (p. ej. 50 MP → 1 frame).
   - Planificador de zoom 0.6x (lógica pedida: 0.6x sólo si hay ultra gran angular real).
   - 52 pruebas unitarias (todas pasan, también en CI).
 - [x] App Android (Kotlin + CameraX 1.4.1 + Compose):

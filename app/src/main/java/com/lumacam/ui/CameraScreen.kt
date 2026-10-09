@@ -177,6 +177,7 @@ private fun CameraContent(vm: CameraViewModel, state: UiState) {
                 .aspectRatio(aspect),
         ) {
             AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+            if (settings.grid) GridOverlay()
             ViewfinderGestures(vm, previewView)
             FocusRing(state.focus)
             if (state.bypass) {
@@ -271,6 +272,20 @@ private fun ViewfinderGestures(vm: CameraViewModel, previewView: PreviewView) {
                 )
             },
     )
+}
+
+@Composable
+private fun GridOverlay() {
+    Canvas(Modifier.fillMaxSize()) {
+        val c = Color.White.copy(alpha = 0.22f)
+        val stroke = 1.dp.toPx()
+        for (i in 1..2) {
+            val x = size.width * i / 3f
+            val y = size.height * i / 3f
+            drawLine(c, Offset(x, 0f), Offset(x, size.height), stroke)
+            drawLine(c, Offset(0f, y), Offset(size.width, y), stroke)
+        }
+    }
 }
 
 @Composable

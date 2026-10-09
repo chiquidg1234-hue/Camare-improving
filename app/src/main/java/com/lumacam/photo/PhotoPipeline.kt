@@ -168,9 +168,9 @@ object PhotoPipeline {
         val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val proc = LookProcessor(look)
         val margin = proc.requiredMargin(w, h)
-        val strip = STRIP_ROWS
+        val (strip, parallel) = stripPlan(w, margin)
         val strips = (h + strip - 1) / strip
-        val sem = Semaphore(min(4, max(1, Runtime.getRuntime().availableProcessors())))
+        val sem = Semaphore(parallel)
         val done = AtomicInteger()
         (0 until strips).map { i ->
             async(Dispatchers.Default) {
@@ -189,6 +189,24 @@ object PhotoPipeline {
             }
         }.awaitAll()
         out
+    }
+
+    /**
+     * Alto de franja y franjas simultáneas para no pasarse de la memoria de Java: cada franja
+     * usa ~5 arrays de 4 bytes por píxel (entrada, luminancia, desenfoque…), y el margen del
+     * desenfoque crece con la resolución (p. ej. 50 MP).
+     */
+    internal fun stripPlan(width: Int, margin: Int): Pair<Int, Int> {
+        val rt = Runtime.getRuntime()
+        val free = rt.maxMemory() - (rt.totalMemory() - rt.freeMemory())
+        val budget = (free * 0.5).toLong().coerceAtLeast(32L * 1024 * 1024)
+        val bytesPerRow = width.toLong() * 4 * 6
+        var parallel = min(4, max(1, rt.availableProcessors()))
+        var strip = STRIP_ROWS
+        fun cost() = (strip + 2L * margin) * bytesPerRow * parallel
+        while (cost() > budget && parallel > 1) parallel--
+        while (cost() > budget && strip > 16) strip /= 2
+        return strip to parallel
     }
 
     private fun save(
