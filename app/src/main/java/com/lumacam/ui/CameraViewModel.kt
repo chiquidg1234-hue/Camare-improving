@@ -140,6 +140,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         pushLook()
+        loadLastCapture()
         viewModelScope.launch {
             while (true) {
                 delay(1000)
@@ -595,6 +596,32 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         if (!started) _state.update { it.copy(message = "La grabación no está lista") }
+    }
+
+    /** Miniatura de la última foto de LumaCam (la app puede leer las fotos que creó). */
+    private fun loadLastCapture() {
+        viewModelScope.launch {
+            val found = withContext(Dispatchers.IO) {
+                runCatching {
+                    val resolver = getApplication<Application>().contentResolver
+                    val collection = android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                    resolver.query(
+                        collection,
+                        arrayOf(android.provider.MediaStore.MediaColumns._ID),
+                        "${android.provider.MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?",
+                        arrayOf("Pictures/LumaCam%"),
+                        "${android.provider.MediaStore.MediaColumns.DATE_ADDED} DESC",
+                    )?.use { c ->
+                        if (!c.moveToFirst()) return@use null
+                        val uri = android.content.ContentUris.withAppendedId(collection, c.getLong(0))
+                        uri to resolver.loadThumbnail(uri, Size(240, 240), null)
+                    }
+                }.getOrNull()
+            }
+            if (found != null && _state.value.lastUri == null) {
+                _state.update { it.copy(lastUri = found.first, lastThumbnail = found.second, lastIsVideo = false) }
+            }
+        }
     }
 
     private fun loadVideoThumbnail(uri: Uri) {
