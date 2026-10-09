@@ -152,9 +152,9 @@ Marca cada una. Si algo falla, copia el **Diagnóstico** y dime qué pasó.
 
 **Verificado aquí (sin teléfono):**
 - Compila: `./gradlew assembleDebug` en GitHub Actions ✔ (APK de ~10 MB).
-- Pruebas unitarias de la lógica: 64 en `core` (presets, curvas, LUT, balance de blancos,
+- Pruebas unitarias de la lógica: 65 en `core` (presets, curvas, LUT, balance de blancos,
   pipeline por franjas, zoom 0.6x, planificador de captura, alineación con rotación, fusión,
-  anti-fantasmas, ruido de color) + 1 en la app. Todas pasan ✔.
+  anti-fantasmas, ruido de color, reglas de ráfaga) + 1 en la app. Todas pasan ✔.
 - Lint de Android: **0 errores** ✔. Quedan advertencias intencionadas: versiones más nuevas
   disponibles (se usan las ya validadas: AGP 8.7.3, CameraX 1.4.1, Compose BOM 2024.12.01;
   existen CameraX 1.6.x y AGP 9.x para actualizar con el teléfono a mano), targetSdk 35 y la

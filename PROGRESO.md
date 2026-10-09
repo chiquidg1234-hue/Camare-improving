@@ -27,7 +27,7 @@ la rama huérfana `ccr-c0c8f514-ds68bb` (sin historial común con el resto del r
   - Reducción de ruido de color con filtro guiado (luma como guía), adaptada al ruido medido.
   - Planificador de captura según resolución y memoria (p. ej. 50 MP → 1 frame).
   - Planificador de zoom 0.6x (lógica pedida: 0.6x sólo si hay ultra gran angular real).
-  - 64 pruebas unitarias (todas pasan, también en CI).
+  - 65 pruebas unitarias (todas pasan, también en CI).
 - [x] App Android (Kotlin + CameraX 1.4.1 + Compose):
   - `LookSurfaceProcessor`: OpenGL ES (CameraEffect de CameraX) que aplica el look a la vista
     previa y al video; pirámide de luminancia desenfocada para el contraste local.
