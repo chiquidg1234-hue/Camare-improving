@@ -68,3 +68,13 @@ la rama huérfana `ccr-c0c8f514-ds68bb` (sin historial común con el resto del r
   entorno: el informe de lint se imprime en el log de CI para poder leerlo.
 - Especificación real del teléfono: el X7c con Snapdragon 4 Gen 2 es el modelo 5G (principal
   50 MP + profundidad 2 MP, frontal 5 MP). El de 108 MP es el modelo 4G (Snapdragon 685).
+
+## Siguientes pasos sugeridos (con el teléfono a mano)
+
+1. Instalar el APK, pasar la lista de pruebas de NOTAS.md y copiarme el Diagnóstico y el
+   resultado de "Medir rendimiento".
+2. Ajustar tiempos/frames por defecto según esos números (y la fuerza de cada look a tu gusto).
+3. Repo nuevo: mover esta rama a `main` y activar Releases para tener un enlace directo al APK.
+4. Probar a subir CameraX a 1.5/1.6 (mejor soporte de efectos y HDR) y AGP/Compose recientes.
+5. Si el teléfono expone RAW (lo dirá el diagnóstico en "capacidades"), fusionar en RAW daría
+   bastante más calidad de noche que fusionar JPEG.
