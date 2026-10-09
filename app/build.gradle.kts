@@ -74,7 +74,7 @@ android {
 }
 
 dependencies {
-    implementation("com.lumacam:core:1.0")
+    implementation(libs.lumacam.core)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

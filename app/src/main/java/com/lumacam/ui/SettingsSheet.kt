@@ -86,6 +86,7 @@ fun SettingsSheet(state: UiState, vm: CameraViewModel, onDismiss: () -> Unit) {
             AdjSlider("Vibrancia", a.vibrance, -1f..1f) { vm.setAdjustments(a.copy(vibrance = it)) }
             AdjSlider("Contraste local", a.localContrast, 0f..1f) { vm.setAdjustments(a.copy(localContrast = it)) }
             AdjSlider("Nitidez", a.sharpness, 0f..1f) { vm.setAdjustments(a.copy(sharpness = it)) }
+            AdjSlider("Menos ruido de color (sólo foto)", a.noiseReduction, 0f..1f) { vm.setAdjustments(a.copy(noiseReduction = it)) }
             if (a != Adjustments.NEUTRAL) {
                 TextButton(onClick = vm::resetAdjustments) { Text("Restablecer ajustes") }
             }

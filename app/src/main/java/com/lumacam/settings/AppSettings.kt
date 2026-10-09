@@ -51,6 +51,7 @@ class SettingsStore(context: Context) {
                 vibrance = p.getFloat("adj_vibrance", 0f),
                 localContrast = p.getFloat("adj_local_contrast", 0f),
                 sharpness = p.getFloat("adj_sharpness", 0f),
+                noiseReduction = p.getFloat("adj_noise_reduction", 0f),
             ),
             multiFrame = p.getBoolean("multi_frame", d.multiFrame),
             frames = p.getInt("frames", d.frames),
@@ -82,6 +83,7 @@ class SettingsStore(context: Context) {
             .putFloat("adj_vibrance", s.adjustments.vibrance)
             .putFloat("adj_local_contrast", s.adjustments.localContrast)
             .putFloat("adj_sharpness", s.adjustments.sharpness)
+            .putFloat("adj_noise_reduction", s.adjustments.noiseReduction)
             .putBoolean("multi_frame", s.multiFrame)
             .putInt("frames", s.frames)
             .putInt("jpeg_quality", s.jpegQuality)

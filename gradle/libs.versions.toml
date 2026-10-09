@@ -33,6 +33,8 @@ androidx-camera-extensions = { group = "androidx.camera", name = "camera-extensi
 androidx-exifinterface = { group = "androidx.exifinterface", name = "exifinterface", version.ref = "exifinterface" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+# Build incluido ./core (sustitución automática del build compuesto).
+lumacam-core = { group = "com.lumacam", name = "core", version = "1.0" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

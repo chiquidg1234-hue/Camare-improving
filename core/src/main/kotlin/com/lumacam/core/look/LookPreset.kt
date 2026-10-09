@@ -26,6 +26,8 @@ data class LookPreset(
     val suggestedFrames: Int = 4,
     /** Permite exposiciones más largas (rango de FPS bajo) en modo foto. */
     val longExposure: Boolean = false,
+    /** Reducción de ruido de color en la foto final (0..1), se adapta al ruido medido. */
+    val noiseReduction: Float = 0.35f,
 ) {
     val displayName: String get() = id.displayName
 }
@@ -88,6 +90,7 @@ object Looks {
         shoulder = 0.02f,
         vignette = 0.05f,
         suggestedFrames = 4,
+        noiseReduction = 0.25f,
     )
 
     val NIGHT = LookPreset(
@@ -104,6 +107,7 @@ object Looks {
         shoulder = 0.06f,
         suggestedFrames = 8,
         longExposure = true,
+        noiseReduction = 0.85f,
     )
 
     val ALL: List<LookPreset> = listOf(NATURAL, WARM, CINE, VIVID, NIGHT)

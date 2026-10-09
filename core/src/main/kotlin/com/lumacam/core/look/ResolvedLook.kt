@@ -24,12 +24,14 @@ class ResolvedLook(
     /** Mezcla entre la imagen y la LUT del look (0..1). */
     val lutMix: Float,
     val vignette: Float,
+    /** Reducción de ruido de color de la foto (0..1, antes de adaptarla al ruido medido). */
+    val chromaDenoise: Float = 0f,
 ) {
     val wbNeutral: Boolean get() = WhiteBalance.isNeutral(gains)
 
     val isNeutral: Boolean
         get() = wbNeutral && curve.isIdentity && saturation == 1f && vibrance == 0f &&
-            localContrast == 0f && sharpness == 0f && lutMix == 0f && vignette == 0f
+            localContrast == 0f && sharpness == 0f && lutMix == 0f && vignette == 0f && chromaDenoise == 0f
 
     fun describe(): String =
         "${presetId.displayName} ${(intensity * 100).toInt()}%"
@@ -45,7 +47,7 @@ class ResolvedLook(
 
         fun resolve(preset: LookPreset, intensity: Float, user: Adjustments = Adjustments.NEUTRAL): ResolvedLook {
             val k = intensity.coerceIn(0f, 1f)
-            val eff = (preset.base.scaled(k) + user).clamped()
+            val eff = (preset.base.copy(noiseReduction = preset.noiseReduction).scaled(k) + user).clamped()
             val curve = ToneCurve.build(
                 contrast = eff.contrast,
                 shadows = eff.shadows,
@@ -68,6 +70,7 @@ class ResolvedLook(
                 lut = lutFor(preset.grade),
                 lutMix = if (gradeActive) k else 0f,
                 vignette = (preset.vignette * k).coerceIn(0f, 1f),
+                chromaDenoise = eff.noiseReduction,
             )
         }
 

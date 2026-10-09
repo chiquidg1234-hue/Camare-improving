@@ -35,7 +35,7 @@ object Benchmark {
                 bitmaps.clear()
 
                 val t1 = System.nanoTime()
-                val l = PhotoPipeline.applyLook(merged, look)
+                val l = PhotoPipeline.applyLook(merged, look, look.chromaDenoise)
                 looked = l
                 val lookTime = secs(t1)
 

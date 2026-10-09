@@ -14,9 +14,11 @@ import androidx.camera.core.ImageProxy
 import androidx.exifinterface.media.ExifInterface
 import com.lumacam.core.image.FrameSink
 import com.lumacam.core.image.FrameSource
+import com.lumacam.core.look.ChromaDenoiser
 import com.lumacam.core.look.LookProcessor
 import com.lumacam.core.look.ResolvedLook
 import com.lumacam.core.merge.BurstMerger
+import com.lumacam.core.merge.ImageStats
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -146,9 +148,12 @@ object PhotoPipeline {
             merged = first.bitmap
         }
 
+        // Ruido medido en la imagen ya fusionada: con poco ruido se suaviza poco el color.
+        val sigma = if (look.chromaDenoise > 0f) ImageStats.noiseSigma(BitmapFrameSource(merged)) else 0f
+        val cdStrength = ChromaDenoiser.adaptiveStrength(look.chromaDenoise, sigma)
         val out = if (look.isNeutral) merged else {
             progress("Aplicando look…", 0.6f)
-            val o = applyLook(merged, look) { p -> progress("Aplicando look…", 0.6f + 0.3f * p) }
+            val o = applyLook(merged, look, cdStrength) { p -> progress("Aplicando look…", 0.6f + 0.3f * p) }
             merged.recycle()
             o
         }
@@ -158,6 +163,7 @@ object PhotoPipeline {
         val summaryParts = listOfNotNull(
             look.describe(),
             mergeInfo.ifEmpty { null },
+            if (cdStrength > 0.02f) "ruido de color −${(cdStrength * 100).toInt()}%" else null,
             note,
         )
         val summary = summaryParts.joinToString(" · ")
@@ -168,13 +174,20 @@ object PhotoPipeline {
     }
 
     /** Aplica el look por franjas en paralelo (memoria de Java acotada). */
-    suspend fun applyLook(src: Bitmap, look: ResolvedLook, progress: (Float) -> Unit = {}): Bitmap = coroutineScope {
+    suspend fun applyLook(
+        src: Bitmap,
+        look: ResolvedLook,
+        chromaStrength: Float = 0f,
+        progress: (Float) -> Unit = {},
+    ): Bitmap = coroutineScope {
         val w = src.width
         val h = src.height
         val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val proc = LookProcessor(look)
-        val margin = proc.requiredMargin(w, h)
-        val (strip, parallel) = stripPlan(w, margin)
+        val cd = if (chromaStrength > 0.02f) ChromaDenoiser(chromaStrength, ChromaDenoiser.radiusFor(w, h)) else null
+        val lookMargin = proc.requiredMargin(w, h)
+        val margin = lookMargin + (cd?.requiredMargin ?: 0)
+        val (strip, parallel) = stripPlan(w, margin, if (cd != null) 20 else 6)
         val strips = (h + strip - 1) / strip
         val sem = Semaphore(parallel)
         val done = AtomicInteger()
@@ -185,10 +198,22 @@ object PhotoPipeline {
                     val rows = min(strip, h - y0)
                     val s0 = max(0, y0 - margin)
                     val s1 = min(h, y0 + rows + margin)
-                    val srcBuf = IntArray((s1 - s0) * w)
-                    src.getPixels(srcBuf, 0, w, 0, s0, w, s1 - s0)
+                    var buf = IntArray((s1 - s0) * w)
+                    src.getPixels(buf, 0, w, 0, s0, w, s1 - s0)
+                    var bufY0 = s0
+                    var bufRows = s1 - s0
+                    if (cd != null) {
+                        // Primero el ruido de color (necesita su propio margen), luego el look.
+                        val a0 = max(0, y0 - lookMargin)
+                        val a1 = min(h, y0 + rows + lookMargin)
+                        val tmp = IntArray((a1 - a0) * w)
+                        cd.processRows(buf, s0, s1 - s0, w, a0, a1 - a0, tmp)
+                        buf = tmp
+                        bufY0 = a0
+                        bufRows = a1 - a0
+                    }
                     val dst = IntArray(rows * w)
-                    proc.processRows(srcBuf, s0, s1 - s0, w, h, y0, rows, dst)
+                    proc.processRows(buf, bufY0, bufRows, w, h, y0, rows, dst)
                     synchronized(out) { out.setPixels(dst, 0, w, 0, y0, w, rows) }
                     progress(done.incrementAndGet().toFloat() / strips)
                 }
@@ -202,11 +227,11 @@ object PhotoPipeline {
      * usa ~5 arrays de 4 bytes por píxel (entrada, luminancia, desenfoque…), y el margen del
      * desenfoque crece con la resolución (p. ej. 50 MP).
      */
-    internal fun stripPlan(width: Int, margin: Int): Pair<Int, Int> {
+    internal fun stripPlan(width: Int, margin: Int, arraysPerPixel: Int = 6): Pair<Int, Int> {
         val rt = Runtime.getRuntime()
         val free = rt.maxMemory() - (rt.totalMemory() - rt.freeMemory())
         val budget = (free * 0.5).toLong().coerceAtLeast(32L * 1024 * 1024)
-        val bytesPerRow = width.toLong() * 4 * 6
+        val bytesPerRow = width.toLong() * 4 * arraysPerPixel
         var parallel = min(4, max(1, rt.availableProcessors()))
         var strip = STRIP_ROWS
         fun cost() = (strip + 2L * margin) * bytesPerRow * parallel

@@ -5,7 +5,8 @@ package com.lumacam.core.look
  * - temperature: -1 (frío/azul) .. +1 (cálido/ámbar)
  * - tint: -1 (verde) .. +1 (magenta)
  * - contrast, shadows, highlights, saturation, vibrance: -1 .. +1
- * - localContrast (claridad) y sharpness (nitidez): 0 .. 1
+ * - localContrast (claridad), sharpness (nitidez) y noiseReduction (ruido de color en la
+ *   foto, se suma a la del look): 0 .. 1
  */
 data class Adjustments(
     val temperature: Float = 0f,
@@ -17,6 +18,7 @@ data class Adjustments(
     val vibrance: Float = 0f,
     val localContrast: Float = 0f,
     val sharpness: Float = 0f,
+    val noiseReduction: Float = 0f,
 ) {
     operator fun plus(o: Adjustments) = Adjustments(
         temperature = temperature + o.temperature,
@@ -28,6 +30,7 @@ data class Adjustments(
         vibrance = vibrance + o.vibrance,
         localContrast = localContrast + o.localContrast,
         sharpness = sharpness + o.sharpness,
+        noiseReduction = noiseReduction + o.noiseReduction,
     )
 
     fun scaled(k: Float) = Adjustments(
@@ -40,6 +43,7 @@ data class Adjustments(
         vibrance = vibrance * k,
         localContrast = localContrast * k,
         sharpness = sharpness * k,
+        noiseReduction = noiseReduction * k,
     )
 
     fun clamped() = Adjustments(
@@ -52,6 +56,7 @@ data class Adjustments(
         vibrance = vibrance.coerceIn(-1f, 1f),
         localContrast = localContrast.coerceIn(0f, 1f),
         sharpness = sharpness.coerceIn(0f, 1f),
+        noiseReduction = noiseReduction.coerceIn(0f, 1f),
     )
 
     val isNeutral: Boolean get() = this == NEUTRAL
