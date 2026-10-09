@@ -3,35 +3,39 @@
 App de cámara nativa (Kotlin + CameraX + OpenGL ES + Jetpack Compose) con procesado propio:
 looks en tiempo real en la vista previa y el video, y foto multi-frame con el mismo look.
 
-> **Dónde está:** rama `ccr-c0c8f514-ds68bb` del repo `chiquidg1234-hue/Camera-`. Es una rama
-> **huérfana**: no comparte historial con GrabaFondo ni toca nada de él (la rama
-> `ccr-b0160724-ouuaqg` y la etiqueta `grabafondo` siguen intactas). Para pasarla al repo nuevo
-> ver "Mover a un repo nuevo" al final.
+> **Dónde está:** rama `main` del repo
+> [`chiquidg1234-hue/Camare-improving`](https://github.com/chiquidg1234-hue/Camare-improving)
+> (con todo el historial). En el repo viejo `Camera-` sigue la rama `ccr-c0c8f514-ds68bb` como
+> copia; GrabaFondo no se tocó.
 
 ---
 
-## 1. Cómo instalar el APK en el teléfono
+## 1. Cómo instalar (QR de invitación)
 
-El APK se compila solo en GitHub Actions con cada cambio (workflow **"LumaCam APK"**).
+**Enlace fijo del APK:**
+<https://github.com/chiquidg1234-hue/Camare-improving/releases/latest/download/LumaCam.apk>
 
-1. En el navegador (puede ser el del teléfono, con tu sesión de GitHub iniciada) abre
-   <https://github.com/chiquidg1234-hue/Camera-/actions> y elige el workflow **LumaCam APK**.
-2. Toca la ejecución más reciente de la rama `ccr-c0c8f514-ds68bb` (marca verde ✔).
-3. Abajo, en **Artifacts**, descarga **LumaCam-apk** (llega como `.zip`). Si en el móvil no
-   ves esa sección, activa "Ver versión para ordenador" en el menú del navegador.
-4. Abre el `.zip` con el gestor de archivos del Honor y toca `app-debug.apk`.
-5. Si MagicOS lo bloquea: Ajustes → Seguridad → *Instalar apps de fuentes desconocidas* (o
-   "Instalación de apps externas") y permite al gestor de archivos/navegador. Si aparece el
-   aviso de "app no verificada", elige *Instalar de todos modos*.
-6. Abre **LumaCam** y concede permisos de cámara y micrófono.
+El QR (`docs/qr-descarga.png`, también en la Release) abre ese enlace. Sirve para ti y para
+cualquier persona a la que se lo pases, porque el repo es público.
 
-Alternativa con cable: `adb install -r app-debug.apk` (con depuración USB activada).
+1. Escanea el QR con la cámara del teléfono (o abre el enlace) y descarga **LumaCam.apk**.
+2. Abre el archivo descargado. Si MagicOS/Android lo bloquea: permite *Instalar apps
+   desconocidas* para el navegador o el gestor de archivos (Ajustes → Seguridad).
+3. Toca **Instalar**; si sale el aviso de app no verificada, *Instalar de todos modos*.
+4. Abre **LumaCam** y concede cámara y micrófono.
 
-Cada APK nuevo se instala **encima** del anterior (misma clave de firma fija y número de
-versión creciente), sin perder ajustes.
+**Invitar a otra persona:** en la app, botón **compartir** (arriba) → muestra el QR en
+pantalla para que lo escaneen, o **Compartir enlace** para mandarlo por WhatsApp, etc.
 
-*No publiqué un "Release" con enlace directo (como en GrabaFondo) porque crearía una etiqueta
-en este repo y pediste no cambiarlo. En el repo nuevo lo activo y tendrás un enlace fijo.*
+**Cómo se actualiza:** cada cambio en `main` hace que GitHub Actions compile el APK y reemplace
+la Release **lumacam**. El enlace y el QR son siempre los mismos; cada versión nueva se instala
+encima de la anterior sin perder ajustes (misma firma y número de versión creciente).
+
+Notas:
+- El APK es para teléfonos ARM de 64 bits (arm64-v8a): el Honor X7c y casi todos los Android
+  de los últimos años. Teléfonos muy viejos de 32 bits no lo podrán instalar.
+- Es un APK firmado con una clave de pruebas (no de Play Store); por eso Android avisa al
+  instalar. Para Play Store haría falta una clave propia y una cuenta de desarrollador.
 
 ---
 
@@ -82,6 +86,26 @@ de 4 fotos de 12 MP, el look y el JPEG (pégame también ese resultado).
 - Si una combinación (look + estabilización, modo del fabricante, etc.) no es compatible, prueba
   la siguiente en orden y te dice qué se desactivó.
 - Si sales de la app mientras procesa una foto, la foto se termina de guardar igual.
+
+### Modo POSES (nuevo)
+
+Pestaña **POSES** (entre FOTO y VIDEO). Es el modo foto con una guía para posar:
+
+- **Ángulo de la cámara:** con el sensor de gravedad del teléfono detecta si la cámara está
+  *cenital* (justo encima), en *picado* (desde arriba), *a la altura de los ojos*, en
+  *contrapicado* (desde abajo) o *desde el suelo*, y explica qué efecto da ese ángulo (por
+  ejemplo, el picado estiliza la cara; el contrapicado hace ver más alto).
+- **Poses sugeridas para ese ángulo** (15 en total, al menos 3 por ángulo), con consejos que van
+  rotando. Con las flechas ◀ ▶ cambias de pose. Con la cámara frontal salen primero las de
+  selfie.
+- **Silueta guía** de la pose en el visor y **línea de nivel** (verde cuando el teléfono está
+  recto).
+- **Detectar mi pose** (ML Kit, el modelo va dentro de la app, no necesita internet): dibuja tu
+  esqueleto, da un **% de coincidencia** con la pose elegida y un consejo concreto ("Sube el
+  brazo de la derecha", "Más cerca"…). Funciona aunque hagas la pose con el otro lado.
+- **Disparo automático:** si mantienes la pose (≥ 80 % de coincidencia) cuenta 3, 2, 1 y hace
+  la foto sola (con el look y el multi-frame de siempre). Ideal para selfies o con el teléfono
+  apoyado.
 
 ### Zoom 0.6x
 
@@ -139,6 +163,20 @@ Marca cada una. Si algo falla, copia el **Diagnóstico** y dime qué pasó.
 - [ ] El audio se oye; vertical/horizontal quedan bien orientados.
 - [ ] Prueba 4K: si el contador de fps baja mucho o el video da saltos, quédate en 1080p.
 
+**Modo POSES**
+- [ ] Pestaña POSES: arriba a la derecha sale el ángulo (p. ej. "A la altura de los ojos · 2°").
+- [ ] Inclina el teléfono hacia abajo/arriba: cambia a Picado/Contrapicado/Cenital y cambian
+      las poses sugeridas.
+- [ ] La línea del centro se pone verde con el teléfono recto.
+- [ ] Con "Detectar mi pose": aparece tu esqueleto sobre el cuerpo (con la cámara trasera y con
+      la frontal) y el % sube cuando imitas la silueta.
+- [ ] Con "Disparo automático": al mantener la pose sale la cuenta atrás 3-2-1 y se hace la foto.
+- [ ] Si el esqueleto sale desplazado respecto a la persona o con los lados cambiados, dímelo.
+
+**Invitar**
+- [ ] Botón compartir → se ve el QR; escanéalo con otro teléfono y comprueba que descarga e
+      instala LumaCam.
+
 **Controles**
 - [ ] Toca la imagen: aparece el círculo y enfoca/mide ahí.
 - [ ] EV en Ajustes: la imagen se aclara/oscurece.
@@ -153,9 +191,9 @@ Marca cada una. Si algo falla, copia el **Diagnóstico** y dime qué pasó.
 
 **Verificado aquí (sin teléfono):**
 - Compila: `./gradlew assembleDebug` en GitHub Actions ✔ (APK de ~10 MB).
-- Pruebas unitarias de la lógica: 65 en `core` (presets, curvas, LUT, balance de blancos,
+- Pruebas unitarias de la lógica: 85 en `core` (presets, curvas, LUT, balance de blancos,
   pipeline por franjas, zoom 0.6x, planificador de captura, alineación con rotación, fusión,
-  anti-fantasmas, ruido de color, reglas de ráfaga) + 1 en la app. Todas pasan ✔.
+  anti-fantasmas, ruido de color, reglas de ráfaga, ángulo de cámara, poses, disparo automático) + 1 en la app. Todas pasan ✔.
 - Lint de Android: **0 errores** ✔. Quedan advertencias intencionadas: versiones más nuevas
   disponibles (se usan las ya validadas: AGP 8.7.3, CameraX 1.4.1, Compose BOM 2024.12.01;
   existen CameraX 1.6.x y AGP 9.x para actualizar con el teléfono a mano), targetSdk 35 y la
@@ -168,6 +206,8 @@ Marca cada una. Si algo falla, copia el **Diagnóstico** y dime qué pasó.
   ajusté Vívido para no saturar tanto la piel (`LUMACAM_SAMPLES=… ./gradlew -p core test --tests '*LookSheetTool*'`).
 
 **No lo pude verificar (necesita el teléfono):**
+- El modo POSES en el teléfono: precisión del sensor de ángulo, que el esqueleto de ML Kit
+  coincida con la persona en pantalla (cámara trasera y frontal) y la velocidad de detección.
 - Que la vista previa con el efecto OpenGL funcione en la Adreno 613 y a cuántos fps.
 - La orientación correcta de la imagen en la vista previa y en el video con el efecto.
 - Qué resoluciones, HDR, extensiones y estabilización expone MagicOS a apps de terceros.
@@ -223,15 +263,8 @@ Estructura:
 - `app/src/main/java/com/lumacam/photo/` — pipeline de la foto final.
 - `app/src/main/java/com/lumacam/ui/` — interfaz Compose y ViewModel.
 
-## 7. Mover a un repo nuevo
+## 7. Repos
 
-Todo el proyecto está en esta única rama, sin historial de GrabaFondo. Para pasarlo:
-
-```bash
-git clone --branch ccr-c0c8f514-ds68bb --single-branch https://github.com/chiquidg1234-hue/Camera- lumacam
-cd lumacam
-git remote set-url origin https://github.com/<tu-usuario>/<repo-nuevo>.git
-git push -u origin ccr-c0c8f514-ds68bb:main
-```
-
-(O dame el repo nuevo y lo hago yo.) Después se puede borrar esta rama del repo viejo.
+- Repo actual: `chiquidg1234-hue/Camare-improving`, rama `main` (todo el historial).
+- En `chiquidg1234-hue/Camera-` quedó la rama `ccr-c0c8f514-ds68bb` como copia antigua; se puede
+  borrar cuando quieras (GrabaFondo sigue en su rama y etiqueta, sin cambios).

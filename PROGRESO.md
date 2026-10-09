@@ -1,7 +1,34 @@
 # PROGRESO — LumaCam
 
-Registro de trabajo de la noche (2026-10-09). Proyecto nuevo y separado de GrabaFondo: vive en
-la rama huérfana `ccr-c0c8f514-ds68bb` (sin historial común con el resto del repo).
+## Sesión 2 (2026-10-09, día): repo nuevo, app descargable con QR y modo POSES
+
+- [x] Proyecto movido a `chiquidg1234-hue/Camare-improving` (rama `main`, historial completo).
+- [x] App descargable: CI compila un APK *release* (sin "debuggable": el procesado de fotos va
+      más rápido; sin R8 para no arriesgar CameraX/ML Kit) firmado con la clave fija, y en cada
+      push a `main` actualiza la Release **lumacam** con `LumaCam.apk` y `LumaCam-QR.png`.
+      Enlace fijo: `releases/latest/download/LumaCam.apk` (QR en `docs/qr-descarga.png`).
+- [x] Botón **compartir** en la app: QR generado en el teléfono (ZXing) + compartir enlace.
+- [x] APK más liviano: sólo arm64-v8a y librerías nativas comprimidas (la primera versión con
+      ML Kit para 4 arquitecturas pesaba 108 MB).
+- [x] Modo **POSES**:
+  - `core/pose`: ángulo de la cámara desde el vector de gravedad (trasera/frontal, con
+    suavizado e histéresis), 15 poses con silueta y consejos repartidas por 5 ángulos,
+    comparación por ángulos de articulaciones (independiente del tamaño/posición, prueba
+    también en espejo) con consejos de corrección, y disparo automático con cuenta atrás.
+  - App: sensor de gravedad, ML Kit Pose Detection (modelo incluido) en un `ImageAnalysis` de
+    baja resolución, silueta guía + esqueleto detectado + nivel + tarjeta de consejos.
+  - Al combinar funciones, en modo POSES la detección de pose tiene prioridad (orden de
+    intentos calculado y probado en `core/capture/BindAttempts`).
+- [x] 85 pruebas unitarias en `core` (20 nuevas: ángulo, poses, comparación, disparo, intentos).
+
+Pendiente de esta sesión: probar el modo POSES en el teléfono (ver NOTAS.md).
+
+---
+
+## Sesión 1 (noche del 2026-10-09)
+
+Proyecto nuevo y separado de GrabaFondo; en esta sesión vivía en la rama huérfana
+`ccr-c0c8f514-ds68bb` del repo `Camera-`.
 
 ## Hecho
 
