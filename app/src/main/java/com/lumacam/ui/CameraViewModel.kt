@@ -129,6 +129,11 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     private var probed = false
     /** El vigilante desactivó el efecto porque no llegaban imágenes. */
     private var effectDisabledByWatchdog = false
+    private val sound = android.media.MediaActionSound().apply {
+        load(android.media.MediaActionSound.SHUTTER_CLICK)
+        load(android.media.MediaActionSound.START_VIDEO_RECORDING)
+        load(android.media.MediaActionSound.STOP_VIDEO_RECORDING)
+    }
     private var watchdogJob: Job? = null
 
     private val settings get() = _state.value.settings
@@ -520,6 +525,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 for (i in 0 until n) {
                     if (n > 1) _state.update { it.copy(capture = CaptureProgress("Mantén quieto… ${i + 1}/$n", i.toFloat() / n * 0.3f)) }
                     val image = session.captureImage(captureExecutor)
+                    if (i == 0) sound.play(android.media.MediaActionSound.SHUTTER_CLICK)
                     decodes += async(Dispatchers.Default) {
                         image.use { PhotoPipeline.decode(it, capturePlan.decodeSampleSize, keepJpeg = i == 0) }
                             .also { decoded += it }
@@ -566,11 +572,15 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         }
         val started = session.startRecording { event ->
             when (event) {
-                is VideoRecordEvent.Start -> _state.update { it.copy(recording = true, recordingSeconds = 0) }
+                is VideoRecordEvent.Start -> {
+                    sound.play(android.media.MediaActionSound.START_VIDEO_RECORDING)
+                    _state.update { it.copy(recording = true, recordingSeconds = 0) }
+                }
                 is VideoRecordEvent.Status -> _state.update {
                     it.copy(recordingSeconds = event.recordingStats.recordedDurationNanos / 1_000_000_000L)
                 }
                 is VideoRecordEvent.Finalize -> {
+                    sound.play(android.media.MediaActionSound.STOP_VIDEO_RECORDING)
                     _state.update { it.copy(recording = false) }
                     if (event.hasError() && event.error != VideoRecordEvent.Finalize.ERROR_NONE) {
                         _state.update { it.copy(message = "Error al grabar (${event.error}): ${event.cause?.message ?: ""}") }
@@ -648,6 +658,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     fun formatSeconds(s: Long): String = String.format(Locale.US, "%02d:%02d", s / 60, s % 60)
 
     override fun onCleared() {
+        sound.release()
         removeZoomObserver()
         session.release()
         captureExecutor.shutdown()

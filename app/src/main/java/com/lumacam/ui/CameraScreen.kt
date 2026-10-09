@@ -67,7 +67,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -468,12 +470,16 @@ private fun BottomControls(state: UiState, vm: CameraViewModel, onOpenLast: () -
                     Image(it.asImageBitmap(), contentDescription = "Última captura", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                 }
             }
+            val haptics = LocalHapticFeedback.current
             ShutterButton(
                 mode = s.mode,
                 recording = state.recording,
                 busy = state.capture != null,
                 enabled = state.cameraReady,
-                onClick = vm::onShutter,
+                onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    vm.onShutter()
+                },
             )
             Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
                 if (state.hasFront) {
