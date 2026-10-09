@@ -34,6 +34,12 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.max
 import kotlin.math.min
 
+/**
+ * Ámbito del proceso para terminar de procesar y guardar fotos aunque se cierre la pantalla
+ * (el ViewModel se destruye al salir con "atrás").
+ */
+val ProcessingScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.Default)
+
 /** Un frame decodificado listo para fusionar. */
 class CapturedFrame(val bitmap: Bitmap, val rotationDegrees: Int, val jpegBytes: ByteArray?)
 

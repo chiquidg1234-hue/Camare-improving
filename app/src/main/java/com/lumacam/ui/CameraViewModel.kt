@@ -529,9 +529,14 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 _state.update { it.copy(capture = CaptureProgress("Procesando…", 0.3f)) }
                 val frames = decodes.awaitAll()
                 decoded.clear() // a partir de aquí el pipeline se encarga de liberarlos
-                val result = PhotoPipeline.process(getApplication(), frames, look, s.jpegQuality, capturePlan.note) { text, p ->
-                    _state.update { it.copy(capture = CaptureProgress(text, 0.3f + 0.7f * p)) }
-                }
+                val app = getApplication<Application>()
+                // Se procesa en el ámbito del proceso: si el usuario sale de la app, la foto
+                // se termina de guardar igual.
+                val result = com.lumacam.photo.ProcessingScope.async {
+                    PhotoPipeline.process(app, frames, look, s.jpegQuality, capturePlan.note) { text, p ->
+                        _state.update { it.copy(capture = CaptureProgress(text, 0.3f + 0.7f * p)) }
+                    }
+                }.await()
                 _state.update {
                     it.copy(
                         lastThumbnail = result.thumbnail,
