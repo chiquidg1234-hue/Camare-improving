@@ -65,7 +65,8 @@ grabación, audio. Se guarda en *Películas/LumaCam*.
 **Controles:** compensación de exposición (EV), bloqueo AE (AE-L) y AWB (AWB-L), enfoque y
 medición por toque, zoom con pellizco y botones, flash, cámara frontal, botones de volumen
 como disparador, HDR del fabricante o de Camera2 **sólo si el teléfono lo ofrece** (si no,
-la opción no aparece), exposición larga en el look Nocturno.
+la opción no aparece), exposición larga en el look Nocturno, cuadrícula de tercios, sonido de
+obturador del sistema y vibración al disparar. La miniatura abre la última foto o video.
 
 **Diagnóstico (botón ⓘ):** lista todas las cámaras que ve Camera2, sus rangos de zoom
 (`CONTROL_ZOOM_RATIO_RANGE`), cámaras físicas, resoluciones, HDR/EIS/OIS, FPS y si OpenGL
@@ -111,7 +112,7 @@ Marca cada una. Si algo falla, copia el **Diagnóstico** y dime qué pasó.
 - [ ] Natural: mejora sutil (más detalle y color, sin exagerar).
 - [ ] Cálido: tonos dorados, piel más cálida.
 - [ ] Cine: sombras verde azuladas, piel anaranjada, negros algo levantados, viñeta.
-- [ ] Vívido: colores y contraste fuertes, sin que la piel se vea naranja.
+- [ ] Vívido: colores y contraste fuertes; la piel algo más viva pero no naranja.
 - [ ] Nocturno: sombras levantadas, luces contenidas, menos ruido de color.
 - [ ] Deslizador de intensidad de 0 % a 100 %: el cambio es progresivo; al 0 % se ve como el original.
 - [ ] Mantener pulsado el visor → aparece "ORIGINAL"; al soltar vuelve el look.
@@ -161,6 +162,9 @@ Marca cada una. Si algo falla, copia el **Diagnóstico** y dime qué pasó.
 - Los shaders reales de la app se compilaron y ejecutaron en WebGL (Chromium) y se compararon
   con el procesado de la foto: los 5 looks coinciden con diferencia máxima de 1/255 ✔
   (`node tools/shader-check/check.mjs`).
+- Revisé los 5 looks a ojo aplicándolos con el pipeline real de la foto a fotos de muestra
+  (retrato, gato, café, moto, cohete al anochecer) y recortes al 100 %: sin halos ni artefactos;
+  ajusté Vívido para no saturar tanto la piel (`LUMACAM_SAMPLES=… ./gradlew -p core test --tests '*LookSheetTool*'`).
 
 **No lo pude verificar (necesita el teléfono):**
 - Que la vista previa con el efecto OpenGL funcione en la Adreno 613 y a cuántos fps.

@@ -84,7 +84,7 @@ object Looks {
         id = LookId.VIVID,
         base = Adjustments(
             contrast = 0.22f, shadows = 0.05f, highlights = -0.10f,
-            saturation = 0.22f, vibrance = 0.35f, localContrast = 0.40f, sharpness = 0.30f,
+            saturation = 0.14f, vibrance = 0.45f, localContrast = 0.40f, sharpness = 0.30f,
         ),
         grade = ColorGrade(highlightDesaturation = 0.10f),
         shoulder = 0.02f,
