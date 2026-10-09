@@ -25,6 +25,8 @@ class FrameMerger(private val config: Config = Config()) {
         val highK: Float = 5.0f,
         /** Umbral mínimo (0..255) para no rechazar por el redondeo/artefactos JPEG. */
         val minLow: Float = 2.5f,
+        /** Hilos para procesar franjas en paralelo. El destino debe aceptar escrituras concurrentes. */
+        val parallelism: Int = 4,
     )
 
     data class Stats(val frames: Int, val meanWeight: Float, val rejectedFraction: Float)
@@ -55,34 +57,91 @@ class FrameMerger(private val config: Config = Config()) {
         val invRange = 1f / (high - low)
 
         val stripMax = config.stripRows
-        val padded = stripMax + 2
-        val refBuf = IntArray(padded * w)
-        val tgtBuf = IntArray(padded * w)
-        val refLuma = FloatArray(padded * w)
-        val diff = FloatArray(padded * w)
-        val diffH = FloatArray(padded * w)
-        val valid = BooleanArray(padded * w)
-        val accR = FloatArray(stripMax * w)
-        val accG = FloatArray(stripMax * w)
-        val accB = FloatArray(stripMax * w)
-        val accW = FloatArray(stripMax * w)
-        val out = IntArray(stripMax * w)
-        val readTmp = IntArray(padded * w)
+        val strips = (h + stripMax - 1) / stripMax
+        val agg = Aggregate()
+        val done = java.util.concurrent.atomic.AtomicInteger()
+        val threads = config.parallelism.coerceIn(1, strips)
 
+        fun runStrip(worker: Worker, index: Int) {
+            val y0 = index * stripMax
+            val rows = min(stripMax, h - y0)
+            worker.process(frames, shifts, refIndex, low, high, invRange, y0, rows, sink, agg)
+            progress(done.incrementAndGet().toFloat() / strips)
+        }
+
+        if (threads == 1) {
+            val worker = Worker(w, h, stripMax)
+            for (i in 0 until strips) runStrip(worker, i)
+        } else {
+            val pool = java.util.concurrent.Executors.newFixedThreadPool(threads)
+            try {
+                val local = ThreadLocal.withInitial { Worker(w, h, stripMax) }
+                val futures = (0 until strips).map { i -> pool.submit { runStrip(local.get(), i) } }
+                for (f in futures) {
+                    try {
+                        f.get()
+                    } catch (e: java.util.concurrent.ExecutionException) {
+                        throw e.cause ?: e
+                    }
+                }
+            } finally {
+                pool.shutdown()
+            }
+        }
+        val weightSum = agg.weightSum
+        val weightCount = agg.weightCount
+        val rejected = agg.rejected
+
+        val others = frames.size - 1
+        return Stats(
+            frames = frames.size,
+            meanWeight = if (weightCount == 0L) 1f else (weightSum / weightCount).toFloat(),
+            rejectedFraction = if (others == 0 || weightCount == 0L) 0f else rejected.toFloat() / weightCount,
+        )
+    }
+
+    private class Aggregate {
         var weightSum = 0.0
         var weightCount = 0L
         var rejected = 0L
 
-        var y0 = 0
-        while (y0 < h) {
-            val rows = min(stripMax, h - y0)
+        @Synchronized
+        fun add(ws: Double, wc: Long, rj: Long) {
+            weightSum += ws; weightCount += wc; rejected += rj
+        }
+    }
+
+    /** Buffers de una franja; uno por hilo. */
+    private inner class Worker(private val w: Int, private val h: Int, stripMax: Int) {
+        private val padded = stripMax + 2
+        private val refBuf = IntArray(padded * w)
+        private val tgtBuf = IntArray(padded * w)
+        private val refLuma = FloatArray(padded * w)
+        private val diff = FloatArray(padded * w)
+        private val diffH = FloatArray(padded * w)
+        private val valid = BooleanArray(padded * w)
+        private val accR = FloatArray(stripMax * w)
+        private val accG = FloatArray(stripMax * w)
+        private val accB = FloatArray(stripMax * w)
+        private val accW = FloatArray(stripMax * w)
+        private val out = IntArray(stripMax * w)
+        private val readTmp = IntArray(padded * w)
+
+        fun process(
+            frames: List<FrameSource>, shifts: List<Shift>, refIndex: Int,
+            low: Float, high: Float, invRange: Float,
+            y0: Int, rows: Int, sink: FrameSink, agg: Aggregate,
+        ) {
+            var weightSum = 0.0
+            var weightCount = 0L
+            var rejected = 0L
             // Filas con 1 de margen para la media 3x3: [y0-1, y0+rows+1) recortado a la imagen.
             val py0 = max(0, y0 - 1)
             val py1 = min(h, y0 + rows + 1)
             val prow = py1 - py0
             val off = y0 - py0 // fila de y0 dentro del buffer con margen
 
-            ref.readRows(py0, prow, refBuf, 0)
+            frames[refIndex].readRows(py0, prow, refBuf, 0)
             for (i in 0 until prow * w) refLuma[i] = ColorMath.lumaOf(refBuf[i])
 
             // La referencia siempre pesa 1.
@@ -100,8 +159,7 @@ class FrameMerger(private val config: Config = Config()) {
 
             for (k in frames.indices) {
                 if (k == refIndex) continue
-                val s = shifts[k]
-                readShifted(frames[k], s, py0, prow, w, h, tgtBuf, valid, readTmp)
+                readShifted(frames[k], shifts[k], py0, prow, w, h, tgtBuf, valid, readTmp)
                 for (i in 0 until prow * w) {
                     diff[i] = if (valid[i]) ColorMath.lumaOf(tgtBuf[i]) - refLuma[i] else 0f
                 }
@@ -111,15 +169,13 @@ class FrameMerger(private val config: Config = Config()) {
                     val dst = r * w
                     for (x in 0 until w) {
                         val bi = br + x
+                        weightCount++
                         if (!valid[bi]) {
                             rejected++
-                            weightCount++
                             continue
                         }
-                        val d = abs(diff[bi])
-                        val wgt = ((high - d) * invRange).coerceIn(0f, 1f)
+                        val wgt = ((high - abs(diff[bi])) * invRange).coerceIn(0f, 1f)
                         weightSum += wgt
-                        weightCount++
                         if (wgt <= 0f) {
                             rejected++
                             continue
@@ -142,16 +198,8 @@ class FrameMerger(private val config: Config = Config()) {
                 )
             }
             sink.writeRows(y0, rows, out, 0)
-            y0 += rows
-            progress(y0.toFloat() / h)
+            agg.add(weightSum, weightCount, rejected)
         }
-
-        val others = frames.size - 1
-        return Stats(
-            frames = frames.size,
-            meanWeight = if (weightCount == 0L) 1f else (weightSum / weightCount).toFloat(),
-            rejectedFraction = if (others == 0 || weightCount == 0L) 0f else rejected.toFloat() / weightCount,
-        )
     }
 
     /**
