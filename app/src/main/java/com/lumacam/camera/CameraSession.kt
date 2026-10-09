@@ -127,16 +127,21 @@ class CameraSession(private val context: Context) {
         provider ?: ProcessCameraProvider.getInstance(context).await().also { provider = it }
 
     private suspend fun extensions(): ExtensionsManager? {
-        if (!extensionsTried) {
-            extensionsTried = true
-            extensionsManager = try {
+        if (extensionsTried) return extensionsManager
+        val em = try {
+            // Algunas librerías de fabricante tardan en cargar: no bloquear la cámara por eso.
+            kotlinx.coroutines.withTimeoutOrNull(3000) {
                 ExtensionsManager.getInstanceAsync(context, provider()).await()
-            } catch (t: Throwable) {
-                Log.w(TAG, "Extensiones de CameraX no disponibles", t)
-                null
             }
+        } catch (t: kotlinx.coroutines.CancellationException) {
+            throw t
+        } catch (t: Throwable) {
+            Log.w(TAG, "Extensiones de CameraX no disponibles", t)
+            null
         }
-        return extensionsManager
+        extensionsManager = em
+        extensionsTried = true
+        return em
     }
 
     /** Modos del fabricante disponibles para esta cámara. */

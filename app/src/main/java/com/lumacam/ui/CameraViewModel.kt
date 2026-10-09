@@ -219,7 +219,8 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(cameraReady = false) }
         bindJob = viewModelScope.launch {
             val s = settings
-            val glOk = session.processor.ready.await()
+            // Si OpenGL no responde, se abre la cámara sin efectos en vez de quedarse esperando.
+            val glOk = kotlinx.coroutines.withTimeoutOrNull(4000) { session.processor.ready.await() } ?: false
             val vendorModes = try {
                 session.availableVendorModes(id)
             } catch (t: Throwable) {
@@ -247,7 +248,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 val bindWarnings = result.warnings.toMutableList()
                 if (!glOk) {
-                    bindWarnings += "OpenGL no arrancó (${session.processor.initError}); la vista previa va sin look, la foto sí lo lleva."
+                    bindWarnings += "OpenGL no arrancó (${session.processor.initError ?: "no respondió a tiempo"}); la vista previa va sin look, la foto sí lo lleva."
                 }
                 val c = currentCaps()
                 _state.update {
