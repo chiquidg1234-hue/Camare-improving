@@ -204,6 +204,62 @@ class CameraSession(private val context: Context) {
             }
         }
 
+        val targets = if (req.mode == CaptureMode.PHOTO) CameraEffect.PREVIEW
+        else CameraEffect.PREVIEW or CameraEffect.VIDEO_CAPTURE
+
+        // Intentos en orden de preferencia: modo del fabricante > look en vista previa/video >
+        // estabilización. Si una combinación no es compatible se prueba la siguiente.
+        val vendors = if (vendor != VendorMode.NONE) listOf(vendor, VendorMode.NONE) else listOf(VendorMode.NONE)
+        val effects = if (req.useEffect) listOf(true, false) else listOf(false)
+        val stabs = if (stab == StabilizationState.PREVIEW_AND_VIDEO || stab == StabilizationState.VIDEO_ONLY) {
+            listOf(stab, StabilizationState.OFF)
+        } else listOf(stab)
+
+        var lastError: Throwable? = null
+        for (v in vendors) for (e in effects) for (st in stabs) {
+            val sel = if (v == VendorMode.NONE) baseSelector else selector
+            val built = buildUseCases(req, st, surfaceProvider)
+            try {
+                val group = UseCaseGroup.Builder().apply {
+                    built.all.forEach { addUseCase(it) }
+                    if (e) addEffect(LookEffect(processor, targets))
+                }.build()
+                val bound = provider.bindToLifecycle(owner, sel, group)
+                if (v != vendor) warnings += "No se pudo activar ${vendor.label}; se usa la cámara normal."
+                if (req.useEffect && !e) {
+                    warnings += "La vista previa con look no es compatible con esta combinación; se muestra sin efectos (la foto sí lleva el look)."
+                }
+                if (st != stab) warnings += "La estabilización no se pudo activar junto con el resto de opciones."
+                camera = bound
+                preview = built.preview
+                imageCapture = built.imageCapture
+                videoCapture = built.videoCapture
+                return BindResult(
+                    effectActive = e,
+                    vendorMode = v,
+                    stabilization = st,
+                    photoResolution = built.imageCapture?.resolutionInfo?.resolution,
+                    previewResolution = built.preview.resolutionInfo?.resolution,
+                    warnings = warnings,
+                )
+            } catch (t: Throwable) {
+                Log.w(TAG, "Falló el enlace (fabricante=$v, look=$e, estab=$st)", t)
+                lastError = t
+                provider.unbindAll()
+            }
+        }
+        throw lastError ?: IllegalStateException("No se pudo abrir la cámara")
+    }
+
+    private class UseCases(
+        val preview: Preview,
+        val imageCapture: ImageCapture?,
+        val videoCapture: VideoCapture<Recorder>?,
+    ) {
+        val all: List<UseCase> get() = listOfNotNull(preview, imageCapture, videoCapture)
+    }
+
+    private fun buildUseCases(req: BindRequest, stab: StabilizationState, surfaceProvider: Preview.SurfaceProvider): UseCases {
         val aspect = if (req.mode == CaptureMode.PHOTO) AspectRatio.RATIO_4_3 else AspectRatio.RATIO_16_9
         val previewBuilder = Preview.Builder()
             .setResolutionSelector(
@@ -214,12 +270,8 @@ class CameraSession(private val context: Context) {
         if (stab == StabilizationState.PREVIEW_AND_VIDEO) previewBuilder.setPreviewStabilizationEnabled(true)
         val newPreview = previewBuilder.build().also { it.setSurfaceProvider(surfaceProvider) }
 
-        val useCases = ArrayList<UseCase>()
-        useCases += newPreview
-        var newImageCapture: ImageCapture? = null
-        var newVideoCapture: VideoCapture<Recorder>? = null
         if (req.mode == CaptureMode.PHOTO) {
-            newImageCapture = ImageCapture.Builder()
+            val ic = ImageCapture.Builder()
                 .setCaptureMode(
                     if (req.fastBurst) ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
                     else ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY,
@@ -241,68 +293,17 @@ class CameraSession(private val context: Context) {
                         .build(),
                 )
                 .build()
-            useCases += newImageCapture
-        } else {
-            val quality = if (req.videoQuality == VideoQualityOption.UHD) Quality.UHD else Quality.FHD
-            val recorder = Recorder.Builder()
-                .setQualitySelector(QualitySelector.from(quality, FallbackStrategy.lowerQualityOrHigherThan(Quality.HD)))
-                .build()
-            newVideoCapture = VideoCapture.Builder(recorder)
-                .setVideoStabilizationEnabled(stab == StabilizationState.VIDEO_ONLY)
-                .setTargetRotation(req.targetRotation)
-                .build()
-            useCases += newVideoCapture
+            return UseCases(newPreview, ic, null)
         }
-
-        val targets = if (req.mode == CaptureMode.PHOTO) CameraEffect.PREVIEW
-        else CameraEffect.PREVIEW or CameraEffect.VIDEO_CAPTURE
-
-        var effectActive = false
-        var bound: Camera? = null
-        if (req.useEffect) {
-            try {
-                val group = UseCaseGroup.Builder().apply {
-                    useCases.forEach { addUseCase(it) }
-                    addEffect(LookEffect(processor, targets))
-                }.build()
-                bound = provider.bindToLifecycle(owner, selector, group)
-                effectActive = true
-            } catch (t: Throwable) {
-                Log.w(TAG, "No se pudo enlazar con el efecto; se reintenta sin él", t)
-                provider.unbindAll()
-                warnings += "La vista previa con look no es compatible con esta combinación; se muestra sin efectos (la foto sí lleva el look)."
-            }
-        }
-        if (bound == null) {
-            try {
-                val group = UseCaseGroup.Builder().apply { useCases.forEach { addUseCase(it) } }.build()
-                bound = provider.bindToLifecycle(owner, selector, group)
-            } catch (t: Throwable) {
-                if (vendor != VendorMode.NONE) {
-                    // Último recurso: sin modo del fabricante.
-                    provider.unbindAll()
-                    warnings += "No se pudo activar ${vendor.label}; se usa la cámara normal."
-                    vendor = VendorMode.NONE
-                    val group = UseCaseGroup.Builder().apply { useCases.forEach { addUseCase(it) } }.build()
-                    bound = provider.bindToLifecycle(owner, baseSelector, group)
-                } else {
-                    throw t
-                }
-            }
-        }
-
-        camera = bound
-        preview = newPreview
-        imageCapture = newImageCapture
-        videoCapture = newVideoCapture
-        return BindResult(
-            effectActive = effectActive,
-            vendorMode = vendor,
-            stabilization = stab,
-            photoResolution = newImageCapture?.resolutionInfo?.resolution,
-            previewResolution = newPreview.resolutionInfo?.resolution,
-            warnings = warnings,
-        )
+        val quality = if (req.videoQuality == VideoQualityOption.UHD) Quality.UHD else Quality.FHD
+        val recorder = Recorder.Builder()
+            .setQualitySelector(QualitySelector.from(quality, FallbackStrategy.lowerQualityOrHigherThan(Quality.HD)))
+            .build()
+        val vc = VideoCapture.Builder(recorder)
+            .setVideoStabilizationEnabled(stab == StabilizationState.VIDEO_ONLY)
+            .setTargetRotation(req.targetRotation)
+            .build()
+        return UseCases(newPreview, null, vc)
     }
 
     fun unbind() {

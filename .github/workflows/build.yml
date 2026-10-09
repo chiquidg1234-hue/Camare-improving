@@ -54,6 +54,13 @@ jobs:
           ./gradlew lintDebug 2>&1 | tee lint.log
           exit ${PIPESTATUS[0]}
 
+      - name: Mostrar informe de lint
+        if: always()
+        run: |
+          if [ -f app/build/reports/lint-results-debug.txt ]; then
+            head -300 app/build/reports/lint-results-debug.txt
+          fi
+
       - name: Subir informes (lint y pruebas)
         if: always()
         uses: actions/upload-artifact@v4
