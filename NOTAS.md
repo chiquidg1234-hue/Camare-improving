@@ -17,7 +17,8 @@ El APK se compila solo en GitHub Actions con cada cambio (workflow **"LumaCam AP
 1. En el navegador (puede ser el del teléfono, con tu sesión de GitHub iniciada) abre
    <https://github.com/chiquidg1234-hue/Camera-/actions> y elige el workflow **LumaCam APK**.
 2. Toca la ejecución más reciente de la rama `ccr-c0c8f514-ds68bb` (marca verde ✔).
-3. Abajo, en **Artifacts**, descarga **LumaCam-apk** (llega como `.zip`).
+3. Abajo, en **Artifacts**, descarga **LumaCam-apk** (llega como `.zip`). Si en el móvil no
+   ves esa sección, activa "Ver versión para ordenador" en el menú del navegador.
 4. Abre el `.zip` con el gestor de archivos del Honor y toca `app-debug.apk`.
 5. Si MagicOS lo bloquea: Ajustes → Seguridad → *Instalar apps de fuentes desconocidas* (o
    "Instalación de apps externas") y permite al gestor de archivos/navegador. Si aparece el
