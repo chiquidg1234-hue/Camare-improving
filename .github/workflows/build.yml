@@ -3,6 +3,9 @@ name: LumaCam APK
 on:
   push:
     branches: ["**"]
+    # Cambios sólo de documentación no necesitan recompilar.
+    paths-ignore:
+      - "**.md"
   workflow_dispatch:
 
 permissions:
