@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Instalar LumaCam</title>
+<meta name="description" content="Descarga e instala LumaCam, la cámara con looks y modo poses para Android.">
+<meta name="theme-color" content="#101215">
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #15171a; --muted: #5b6370; --line: #e3e6eb;
+    --accent: #e8892c; --accent-text: #ffffff; --warn-bg: #fff4e5; --warn-line: #f2c48d; --ok: #1f9d55;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101215; --card: #191c21; --text: #eef0f3; --muted: #a2a9b4; --line: #2a2f37;
+      --accent: #ffa94d; --accent-text: #1a1206; --warn-bg: #2b2114; --warn-line: #6b4a1f; --ok: #4ce07a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 480px; margin: 0 auto; padding: 24px 16px 40px; }
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .logo {
+    width: 52px; height: 52px; border-radius: 14px; flex: none;
+    background: radial-gradient(circle at 50% 50%, #101215 0 34%, var(--accent) 35% 46%, #101215 47%);
+  }
+  h1 { font-size: 24px; margin: 0; }
+  .sub { color: var(--muted); font-size: 14px; margin: 0; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin: 12px 0; }
+  .step { display: flex; gap: 12px; }
+  .num {
+    flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--accent-text);
+    display: grid; place-items: center; font-weight: 700; font-size: 15px;
+  }
+  .step h2 { font-size: 17px; margin: 2px 0 4px; }
+  .step p { margin: 0 0 6px; }
+  .attention { background: var(--warn-bg); border-color: var(--warn-line); }
+  .btn {
+    display: block; width: 100%; text-align: center; text-decoration: none; cursor: pointer;
+    background: var(--accent); color: var(--accent-text); border: 0; border-radius: 12px;
+    padding: 14px 16px; font-family: inherit; font-weight: 700; font-size: 17px; line-height: 1.2; margin: 10px 0 4px;
+  }
+  .btn.secondary { background: transparent; color: var(--text); border: 1px solid var(--line); font-weight: 600; font-size: 15px; }
+  .meta { color: var(--muted); font-size: 13px; text-align: center; margin: 0; }
+  kbd {
+    font-family: inherit; font-weight: 600; font-size: 14px; line-height: 1; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px;
+    padding: 2px 6px; background: var(--bg); white-space: nowrap;
+  }
+  details summary { font-weight: 700; cursor: pointer; }
+  details ol { padding-left: 20px; margin: 8px 0 0; }
+  .qr { display: block; width: 220px; max-width: 100%; margin: 12px auto; border-radius: 12px; background: #fff; padding: 8px; }
+  .hidden { display: none; }
+  footer { color: var(--muted); font-size: 13px; text-align: center; margin-top: 24px; }
+  footer a { color: inherit; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="logo" aria-hidden="true"></div>
+    <div>
+      <h1>LumaCam</h1>
+      <p class="sub">Cámara con looks y modo poses para Android</p>
+    </div>
+  </header>
+
+  <!-- Fuera de Android: sólo el QR para escanear con el teléfono. -->
+  <section id="not-android" class="card hidden">
+    <p><strong>LumaCam es para teléfonos Android.</strong> Escanea este código con la cámara de tu Android:</p>
+    <img class="qr" src="qr.png" alt="Código QR de esta página">
+  </section>
+
+  <!-- Navegador interno de otra app (WhatsApp, Instagram…): ahí no se pueden instalar apps. -->
+  <section id="webview" class="card attention hidden">
+    <p><strong>Estás en el navegador de otra app.</strong> Ábrelo en Chrome para poder descargar:</p>
+    <a id="open-chrome" class="btn" href="#">Abrir en Chrome</a>
+  </section>
+
+  <div id="android-steps">
+    <section id="step1" class="card step">
+      <div class="num">1</div>
+      <div>
+        <h2>Ábrela en Chrome</h2>
+        <p>Si arriba a la izquierda ves una <kbd>✕</kbd> (la ventana que se abre al escanear el QR),
+          toca <kbd>⋮</kbd> arriba a la derecha y elige <strong>«Abrir en Chrome»</strong>.</p>
+        <p class="sub">En esa ventana la descarga se queda en «Descargando… 100%» y no termina nunca.</p>
+      </div>
+    </section>
+
+    <section class="card step">
+      <div class="num">2</div>
+      <div style="flex:1">
+        <h2>Descarga la app</h2>
+        <a id="download" class="btn" href="https://github.com/chiquidg1234-hue/Camare-improving/releases/latest/download/LumaCam.apk">Descargar LumaCam</a>
+        <p id="version" class="meta">Archivo LumaCam.apk</p>
+        <p style="margin-top:8px">Chrome te preguntará si quieres descargar el archivo: toca <strong>«Descargar»</strong>
+          (o <strong>«Descargar de todos modos»</strong>).</p>
+      </div>
+    </section>
+
+    <section class="card step">
+      <div class="num">3</div>
+      <div>
+        <h2>Instálala</h2>
+        <p>Toca <strong>«Abrir»</strong> y luego <strong>«Instalar»</strong>. Si Android pide permiso, activa
+          <strong>«Permitir de esta fuente»</strong>, vuelve atrás y toca Instalar otra vez.</p>
+        <p class="sub">Si aparece «App no verificada» o Play Protect, elige «Instalar de todos modos».</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <details>
+        <summary>¿Se quedó en «Descargando…» y no avanza?</summary>
+        <ol>
+          <li>Cierra esa ventana con la <kbd>✕</kbd>.</li>
+          <li>Abre la app <strong>Chrome</strong> → <kbd>⋮</kbd> → <strong>Descargas</strong>. Si aparece LumaCam.apk a medias, bórralo.</li>
+          <li>Vuelve a esta página <strong>dentro de Chrome</strong> (copia el enlace con el botón de abajo y pégalo en la barra de direcciones) y repite el paso 2.</li>
+        </ol>
+        <button id="copy" class="btn secondary" type="button">Copiar enlace de esta página</button>
+      </details>
+    </section>
+
+    <section class="card">
+      <p style="margin:0"><strong>¿Ya la tienes?</strong> Las versiones nuevas se instalan desde la propia app
+        (aviso «Actualizar»), sin volver a esta página. Para invitar a alguien: botón <kbd>Compartir</kbd> de la app →
+        <strong>«Enviar la app»</strong> por Quick Share, Bluetooth o WhatsApp.</p>
+    </section>
+  </div>
+
+  <footer>
+    <a href="https://github.com/chiquidg1234-hue/Camare-improving">Código en GitHub</a>
+  </footer>
+</main>
+<script>
+(function () {
+  var REPO = 'chiquidg1234-hue/Camare-improving';
+  var ua = navigator.userAgent || '';
+  var android = /Android/i.test(ua);
+  // WebView dentro de otra app (no es Chrome): "; wv)" o marcas típicas de navegadores internos.
+  var webview = android && (/; wv\)/.test(ua) || /FBAN|FBAV|Instagram|Line\/|MicroMessenger|TikTok|musical_ly|Snapchat/i.test(ua));
+  // Abierta desde otra app (cámara, lector QR): suele ser la ventana de Chrome con la ✕.
+  var fromApp = (document.referrer || '').indexOf('android-app://') === 0;
+
+  function show(id, on) { document.getElementById(id).classList.toggle('hidden', !on); }
+
+  if (!android) {
+    show('not-android', true);
+    show('android-steps', false);
+  }
+  if (webview) {
+    show('webview', true);
+    var page = location.href.replace(/^https?:\/\//, '');
+    document.getElementById('open-chrome').href =
+      'intent://' + page + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' +
+      encodeURIComponent(location.href) + ';end';
+  }
+  if (fromApp || webview) document.getElementById('step1').classList.add('attention');
+
+  document.getElementById('copy').addEventListener('click', function () {
+    var btn = this, url = location.href.split('#')[0];
+    function done() { btn.textContent = 'Enlace copiado ✓'; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(done, function () { prompt('Copia este enlace:', url); });
+    } else {
+      prompt('Copia este enlace:', url);
+    }
+  });
+
+  // Versión y tamaño de la última publicación (si la API no responde, se queda el texto por defecto).
+  fetch('https://api.github.com/repos/' + REPO + '/releases/latest')
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (rel) {
+      if (!rel) return;
+      var apk = (rel.assets || []).filter(function (a) { return a.name === 'LumaCam.apk'; })[0];
+      var parts = [];
+      if (rel.name) parts.push(rel.name.replace(/^LumaCam\s*/, 'Versión '));
+      if (apk) parts.push(Math.round(apk.size / 1e6) + ' MB');
+      if (parts.length) document.getElementById('version').textContent = parts.join(' · ');
+    })
+    .catch(function () {});
+})();
+</script>
+</body>
+</html>
