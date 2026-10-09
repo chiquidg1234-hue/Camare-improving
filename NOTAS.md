@@ -50,6 +50,11 @@ Mantén pulsado el visor para ver el **original** y comparar.
 - **Multi-frame:** ráfaga de 4 fotos (8 en Nocturno), elige la más nítida, descarta las movidas,
   alinea el resto y las promedia con rechazo de movimiento (sin "fantasmas"). Baja el ruido.
   Durante la ráfaga se bloquean exposición y balance de blancos.
+- **Alineación con rotación:** además del desplazamiento, corrige el pequeño giro de la mano entre
+  frames (modelo afín medido en 48 bloques), para que las esquinas también salgan nítidas.
+- **Menos ruido de color:** filtro guiado por la luminancia que quita las manchas de color de las
+  fotos con poca luz sin emborronar bordes. Su fuerza depende del look (máxima en Nocturno) y del
+  ruido medido en cada foto (de día casi no actúa). Se puede subir en Ajustes.
 - Se aplica **el mismo look** que ves en pantalla (misma matemática en CPU, verificada contra el
   shader) y se guarda JPEG calidad 95 (ajustable 85–100) con los datos EXIF de la cámara, en
   *Imágenes/LumaCam*.
@@ -146,10 +151,13 @@ Marca cada una. Si algo falla, copia el **Diagnóstico** y dime qué pasó.
 
 **Verificado aquí (sin teléfono):**
 - Compila: `./gradlew assembleDebug` en GitHub Actions ✔ (APK de ~10 MB).
-- Pruebas unitarias de la lógica: 52 en `core` (presets, curvas, LUT, balance de blancos,
-  pipeline por franjas, zoom 0.6x, planificador de captura, alineación, fusión, anti-fantasmas)
-  + 1 en la app. Todas pasan ✔.
-- Lint de Android sin errores ✔.
+- Pruebas unitarias de la lógica: 64 en `core` (presets, curvas, LUT, balance de blancos,
+  pipeline por franjas, zoom 0.6x, planificador de captura, alineación con rotación, fusión,
+  anti-fantasmas, ruido de color) + 1 en la app. Todas pasan ✔.
+- Lint de Android: **0 errores** ✔. Quedan advertencias intencionadas: versiones más nuevas
+  disponibles (se usan las ya validadas: AGP 8.7.3, CameraX 1.4.1, Compose BOM 2024.12.01;
+  existen CameraX 1.6.x y AGP 9.x para actualizar con el teléfono a mano), targetSdk 35 y la
+  pantalla fija en vertical.
 - Los shaders reales de la app se compilaron y ejecutaron en WebGL (Chromium) y se compararon
   con el procesado de la foto: los 5 looks coinciden con diferencia máxima de 1/255 ✔
   (`node tools/shader-check/check.mjs`).
@@ -180,8 +188,9 @@ Marca cada una. Si algo falla, copia el **Diagnóstico** y dime qué pasó.
 - Probablemente **sin estabilización óptica (OIS)**; la electrónica (EIS) puede no estar
   disponible para apps de terceros. La app lo detecta y lo dice.
 - Las apps de terceros no reciben el procesado con IA de la cámara de Honor; lo compensamos
-  con el multi-frame y los looks, pero la cámara de Honor puede ganar en algunas escenas
-  (sobre todo HDR fuerte a contraluz si MagicOS no expone HDR).
+  con el multi-frame, la reducción de ruido de color y los looks, pero la cámara de Honor puede
+  ganar en algunas escenas (sobre todo HDR fuerte a contraluz si MagicOS no expone HDR).
+- La reducción de ruido de color sólo se aplica a la foto (no a la vista previa ni al video).
 - El multi-frame trabaja con los JPEG que entrega la cámara (no RAW): baja el ruido de forma
   visible en sombras y de noche, pero no hace milagros si la foto sale movida.
 - El modo de 50 MP real (sin agrupar píxeles) sólo existe si MagicOS lo ofrece a otras apps;

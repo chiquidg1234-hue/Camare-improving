@@ -24,9 +24,10 @@ la rama huérfana `ccr-c0c8f514-ds68bb` (sin historial común con el resto del r
   - Multi-frame: estimación de ruido, elección del frame más nítido, descarte de frames
     movidos, alineación en pirámide + ajuste fino, **modelo afín por bloques** (corrige la
     pequeña rotación de la mano), fusión robusta anti-fantasmas, en paralelo.
+  - Reducción de ruido de color con filtro guiado (luma como guía), adaptada al ruido medido.
   - Planificador de captura según resolución y memoria (p. ej. 50 MP → 1 frame).
   - Planificador de zoom 0.6x (lógica pedida: 0.6x sólo si hay ultra gran angular real).
-  - 57 pruebas unitarias (todas pasan, también en CI).
+  - 64 pruebas unitarias (todas pasan, también en CI).
 - [x] App Android (Kotlin + CameraX 1.4.1 + Compose):
   - `LookSurfaceProcessor`: OpenGL ES (CameraEffect de CameraX) que aplica el look a la vista
     previa y al video; pirámide de luminancia desenfocada para el contraste local.
@@ -44,7 +45,10 @@ la rama huérfana `ccr-c0c8f514-ds68bb` (sin historial común con el resto del r
 - [x] Verificación del shader: `tools/shader-check/check.mjs` ejecuta los shaders reales de la
       app en WebGL (Chromium sin pantalla) y los compara con la CPU: los 5 looks coinciden con
       diferencia máxima de 1/255; con contraste local, media 0.36/255.
-- [x] CI: core test + assembleDebug + testDebugUnitTest + lintDebug.
+- [x] CI: core test + assembleDebug + testDebugUnitTest + lintDebug — todo en verde.
+      Lint: 0 errores; advertencias intencionadas (versiones nuevas disponibles, vertical fijo).
+- [x] Protecciones: tiempo límite para extensiones/OpenGL, vigilante de vista previa negra,
+      cadena de intentos al enlazar la cámara, guardado de fotos aunque se cierre la app.
 
 ## Pendiente / no verificable sin el teléfono
 
@@ -60,3 +64,7 @@ la rama huérfana `ccr-c0c8f514-ds68bb` (sin historial común con el resto del r
 - Maven Central devolvió 429 (demasiadas peticiones) una vez; al reintentar funcionó.
 - El desenfoque en float daba resultados distintos por franjas (orden de sumas): se pasó a
   enteros en punto fijo y ahora es exacto.
+- El almacenamiento de artefactos de GitHub (blob.core.windows.net) está bloqueado desde este
+  entorno: el informe de lint se imprime en el log de CI para poder leerlo.
+- Especificación real del teléfono: el X7c con Snapdragon 4 Gen 2 es el modelo 5G (principal
+  50 MP + profundidad 2 MP, frontal 5 MP). El de 108 MP es el modelo 4G (Snapdragon 685).
