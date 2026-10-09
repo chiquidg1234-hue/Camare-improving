@@ -30,6 +30,12 @@ data class AppSettings(
     val grid: Boolean = true,
     /** Look en la vista previa/video con OpenGL (si se apaga, sólo la foto lleva el look). */
     val gpuPreview: Boolean = true,
+    /** Modo poses: sugerencias según el ángulo de la cámara (dentro del modo foto). */
+    val poseMode: Boolean = false,
+    /** Detectar el cuerpo con ML Kit y comparar con la pose elegida. */
+    val poseDetection: Boolean = true,
+    /** Disparar solo cuando la pose coincide (cuenta atrás de 3 s). */
+    val poseAutoShot: Boolean = true,
 )
 
 class SettingsStore(context: Context) {
@@ -67,6 +73,9 @@ class SettingsStore(context: Context) {
             front = p.getBoolean("front", d.front),
             grid = p.getBoolean("grid", d.grid),
             gpuPreview = p.getBoolean("gpu_preview", d.gpuPreview),
+            poseMode = p.getBoolean("pose_mode", d.poseMode),
+            poseDetection = p.getBoolean("pose_detection", d.poseDetection),
+            poseAutoShot = p.getBoolean("pose_auto_shot", d.poseAutoShot),
         )
     }
 
@@ -98,6 +107,9 @@ class SettingsStore(context: Context) {
             .putBoolean("front", s.front)
             .putBoolean("grid", s.grid)
             .putBoolean("gpu_preview", s.gpuPreview)
+            .putBoolean("pose_mode", s.poseMode)
+            .putBoolean("pose_detection", s.poseDetection)
+            .putBoolean("pose_auto_shot", s.poseAutoShot)
             .apply()
     }
 

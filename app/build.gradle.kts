@@ -24,6 +24,19 @@ android {
         val repo = System.getenv("GITHUB_REPOSITORY") ?: "chiquidg1234-hue/Camare-improving"
         buildConfigField("String", "DOWNLOAD_URL", "\"https://github.com/$repo/releases/latest/download/LumaCam.apk\"")
         buildConfigField("String", "RELEASES_URL", "\"https://github.com/$repo/releases/latest\"")
+
+        // Sólo ARM de 64 bits (Honor X7c y casi todos los Android actuales): el APK pesa mucho
+        // menos al no llevar las librerías de ML Kit para otras arquitecturas.
+        ndk {
+            abiFilters += listOf("arm64-v8a")
+        }
+    }
+
+    packaging {
+        // Librerías nativas comprimidas dentro del APK: descarga más pequeña para el QR.
+        jniLibs {
+            useLegacyPackaging = true
+        }
     }
 
     signingConfigs {

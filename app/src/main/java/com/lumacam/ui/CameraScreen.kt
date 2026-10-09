@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -135,6 +136,7 @@ private fun CameraContent(vm: CameraViewModel, state: UiState) {
     val snackbar = remember { SnackbarHostState() }
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var showDiagnostics by rememberSaveable { mutableStateOf(false) }
+    var showInvite by rememberSaveable { mutableStateOf(false) }
     val dismissed = remember { mutableStateListOf<String>() }
 
     val previewView = remember {
@@ -172,6 +174,7 @@ private fun CameraContent(vm: CameraViewModel, state: UiState) {
             onAwbLock = vm::toggleAwbLock,
             onInfo = { showDiagnostics = true },
             onSettings = { showSettings = true },
+            onInvite = { showInvite = true },
         )
         Box(
             Modifier
@@ -179,9 +182,20 @@ private fun CameraContent(vm: CameraViewModel, state: UiState) {
                 .aspectRatio(aspect),
         ) {
             AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
-            if (settings.grid) GridOverlay()
+            if (settings.grid && !state.poseActive) GridOverlay()
             ViewfinderGestures(vm, previewView)
             FocusRing(state.focus)
+            if (state.poseActive) {
+                PoseOverlay(
+                    pose = state.pose,
+                    autoShot = settings.poseAutoShot,
+                    detectionWanted = settings.poseDetection,
+                    onPrev = { vm.nextPose(-1) },
+                    onNext = { vm.nextPose(1) },
+                    onToggleDetection = { vm.setPoseDetection(!settings.poseDetection) },
+                    onToggleAutoShot = { vm.setPoseAutoShot(!settings.poseAutoShot) },
+                )
+            }
             if (state.bypass) {
                 Badge("ORIGINAL", Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
             }
@@ -247,6 +261,7 @@ private fun CameraContent(vm: CameraViewModel, state: UiState) {
     })
 
     if (showSettings) SettingsSheet(state, vm) { showSettings = false }
+    if (showInvite) InviteDialog { showInvite = false }
     if (showDiagnostics) {
         val text = listOfNotNull(state.benchmark, state.diagnostics).joinToString("\n\n")
         DiagnosticsDialog(text, state.benchmarkRunning, onBenchmark = vm::runBenchmark) { showDiagnostics = false }
@@ -368,6 +383,7 @@ private fun TopBar(
     onAwbLock: () -> Unit,
     onInfo: () -> Unit,
     onSettings: () -> Unit,
+    onInvite: () -> Unit,
 ) {
     Row(
         Modifier
@@ -391,6 +407,7 @@ private fun TopBar(
             (state.settings.sceneHdr && state.sceneHdrAvailable)
         if (hdrOn) ToggleChip(state.bind?.vendorMode?.takeIf { it.name != "NONE" }?.label ?: "HDR", true) { onSettings() }
         Spacer(Modifier.weight(1f))
+        IconButton(onClick = onInvite) { Icon(Icons.Default.Share, contentDescription = "Invitar (QR para instalar)", tint = Color.White) }
         IconButton(onClick = onInfo) { Icon(Icons.Default.Info, contentDescription = "Diagnóstico", tint = Color.White) }
         IconButton(onClick = onSettings) { Icon(Icons.Default.Settings, contentDescription = "Ajustes", tint = Color.White) }
     }
@@ -490,9 +507,10 @@ private fun BottomControls(state: UiState, vm: CameraViewModel, onOpenLast: () -
             }
         }
         Spacer(Modifier.height(6.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            ModeLabel("FOTO", s.mode == CaptureMode.PHOTO) { vm.setMode(CaptureMode.PHOTO) }
-            ModeLabel("VIDEO", s.mode == CaptureMode.VIDEO) { vm.setMode(CaptureMode.VIDEO) }
+        Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+            ModeLabel("FOTO", s.mode == CaptureMode.PHOTO && !s.poseMode) { vm.selectMode(CaptureMode.PHOTO, pose = false) }
+            ModeLabel("POSES", s.mode == CaptureMode.PHOTO && s.poseMode) { vm.selectMode(CaptureMode.PHOTO, pose = true) }
+            ModeLabel("VIDEO", s.mode == CaptureMode.VIDEO) { vm.selectMode(CaptureMode.VIDEO, pose = false) }
         }
     }
 }

@@ -37,6 +37,16 @@ import com.lumacam.core.zoom.UltraWideKind
 import com.lumacam.core.zoom.ZoomPlan
 import com.lumacam.core.zoom.ZoomPlanner
 import com.lumacam.core.zoom.ZoomStop
+import com.lumacam.core.pose.AngleCategory
+import com.lumacam.core.pose.CameraAngle
+import com.lumacam.core.pose.Joint
+import com.lumacam.core.pose.PoseLibrary
+import com.lumacam.core.pose.PoseMatcher
+import com.lumacam.core.pose.PoseTemplate
+import com.lumacam.core.pose.PoseTrigger
+import com.lumacam.core.pose.Pt
+import com.lumacam.pose.OrientationSensor
+import com.lumacam.pose.PoseAnalyzer
 import com.lumacam.photo.CapturedFrame
 import com.lumacam.photo.PhotoPipeline
 import com.lumacam.settings.AppSettings
@@ -68,6 +78,25 @@ data class ExposureUi(
 data class CaptureProgress(val text: String, val progress: Float)
 
 data class FocusIndicator(val x: Float, val y: Float, val id: Long)
+
+/** Estado del modo poses. */
+data class PoseUi(
+    val angle: CameraAngle? = null,
+    val category: AngleCategory = AngleCategory.EYE,
+    val poses: List<PoseTemplate> = PoseLibrary.forCategory(AngleCategory.EYE, selfie = false),
+    val index: Int = 0,
+    /** Articulaciones detectadas (coordenadas de pantalla 0..1). */
+    val detected: Map<Joint, Pt> = emptyMap(),
+    val score: Float? = null,
+    val mirrored: Boolean = false,
+    val hint: String? = null,
+    /** Segundos de la cuenta atrás del disparo automático, o null. */
+    val countdown: Int? = null,
+    val detectionActive: Boolean = false,
+    val sensorAvailable: Boolean = true,
+) {
+    val current: PoseTemplate? get() = poses.getOrNull(index)
+}
 
 data class UiState(
     val settings: AppSettings,
@@ -103,8 +132,10 @@ data class UiState(
     val focus: FocusIndicator? = null,
     val benchmark: String? = null,
     val benchmarkRunning: Boolean = false,
+    val pose: PoseUi = PoseUi(),
 ) {
     val look get() = Looks.byId(settings.lookId)
+    val poseActive: Boolean get() = settings.poseMode && settings.mode == CaptureMode.PHOTO
     val onUltraWide: Boolean
         get() = zoomPlan?.ultraWide == UltraWideKind.SEPARATE_CAMERA && currentCameraId == zoomPlan?.ultraWideCameraId
 }
@@ -136,11 +167,21 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     }
     private var watchdogJob: Job? = null
 
+    // Modo poses
+    private val orientation = OrientationSensor(app)
+    private val poseAnalyzer = PoseAnalyzer(::onPoseDetected)
+    private val poseTrigger = PoseTrigger()
+    private var visible = true
+
     private val settings get() = _state.value.settings
 
     init {
         pushLook()
         loadLastCapture()
+        _state.update { it.copy(pose = it.pose.copy(sensorAvailable = orientation.available)) }
+        viewModelScope.launch {
+            orientation.angle.collect { a -> onAngle(a) }
+        }
         viewModelScope.launch {
             while (true) {
                 delay(1000)
@@ -169,7 +210,18 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         watchdogJob?.cancel()
         removeZoomObserver()
         session.unbind()
+        orientation.stop()
         _state.update { it.copy(cameraReady = false, recording = false) }
+    }
+
+    /** La actividad pasa a primer plano o a segundo plano (sensor sólo cuando se ve). */
+    fun onVisible(v: Boolean) {
+        visible = v
+        updateSensor()
+    }
+
+    private fun updateSensor() {
+        if (visible && _state.value.poseActive) orientation.start() else orientation.stop()
     }
 
     private fun startIfReady() {
@@ -248,7 +300,12 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 fastBurst = s.multiFrame,
                 flashMode = s.flashMode,
                 targetRotation = targetRotation,
+                poseMode = s.poseMode && s.mode == CaptureMode.PHOTO,
+                analyzer = if (s.poseMode && s.poseDetection && s.mode == CaptureMode.PHOTO) poseAnalyzer else null,
             )
+            val front = id == frontId
+            poseAnalyzer.frontCamera = front
+            orientation.frontCamera = front
             try {
                 removeZoomObserver()
                 val result = session.bind(o, req, sp)
@@ -275,8 +332,16 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                         zoomStops = stopsFor(id),
                         warnings = (listOfNotNull(plan?.warning) + bindWarnings).distinct(),
                         diagnostics = buildDiagnostics(result, vendorModes, glOk),
+                        pose = it.pose.copy(
+                            detectionActive = result.analysisActive,
+                            detected = emptyMap(), score = null, hint = null, countdown = null,
+                            poses = PoseLibrary.forCategory(it.pose.category, selfie = front),
+                            index = 0,
+                        ),
                     )
                 }
+                poseTrigger.reset()
+                updateSensor()
                 applyCaptureOptions()
                 if (result.effectActive) startWatchdog()
             } catch (t: kotlinx.coroutines.CancellationException) {
@@ -368,9 +433,86 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------- Ajustes que requieren volver a enlazar ----------
 
-    fun setMode(mode: CaptureMode) {
+    fun setMode(mode: CaptureMode) = selectMode(mode, pose = false)
+
+    /** FOTO, POSES (foto con guía de poses) o VIDEO. */
+    fun selectMode(mode: CaptureMode, pose: Boolean) {
         if (_state.value.recording || _state.value.capture != null) return
-        updateSettings(rebindNeeded = true) { it.copy(mode = mode) }
+        updateSettings(rebindNeeded = true) { it.copy(mode = mode, poseMode = pose && mode == CaptureMode.PHOTO) }
+        updateSensor()
+    }
+
+    // ---------- Modo poses ----------
+
+    fun setPoseDetection(on: Boolean) = updateSettings(rebindNeeded = true) { it.copy(poseDetection = on) }
+
+    fun setPoseAutoShot(on: Boolean) {
+        updateSettings { it.copy(poseAutoShot = on) }
+        poseTrigger.reset()
+        _state.update { it.copy(pose = it.pose.copy(countdown = null)) }
+    }
+
+    fun nextPose(step: Int) {
+        poseTrigger.reset()
+        _state.update {
+            val n = it.pose.poses.size
+            if (n == 0) it else it.copy(pose = it.pose.copy(index = ((it.pose.index + step) % n + n) % n, countdown = null, score = null, hint = null))
+        }
+    }
+
+    private fun onAngle(a: CameraAngle?) {
+        val changed = a != null && a.category != _state.value.pose.category
+        _state.update { st ->
+            val p = st.pose
+            if (a == null) return@update st.copy(pose = p.copy(angle = null))
+            if (a.category == p.category) return@update st.copy(pose = p.copy(angle = a))
+            // Cambió el ángulo: nuevas sugerencias para ese ángulo.
+            val selfie = st.currentCameraId != null && st.currentCameraId == frontId
+            st.copy(
+                pose = p.copy(
+                    angle = a, category = a.category,
+                    poses = PoseLibrary.forCategory(a.category, selfie), index = 0,
+                    score = null, hint = null, countdown = null,
+                ),
+            )
+        }
+        if (changed) poseTrigger.reset()
+    }
+
+    /** Llega en el hilo principal desde ML Kit. */
+    private fun onPoseDetected(points: Map<Joint, Pt>) {
+        val st = _state.value
+        if (!st.poseActive) return
+        val template = st.pose.current ?: return
+        val now = System.currentTimeMillis()
+        val result = if (points.isEmpty()) null else PoseMatcher.match(points, template)
+        val score = result?.score
+        val ratio = result?.sizeRatio
+        val hint = when {
+            points.isEmpty() -> "No veo a nadie: aléjate o encuadra el cuerpo"
+            ratio != null && ratio < 0.55f -> "Más cerca (o acerca la cámara)"
+            ratio != null && ratio > 1.7f -> "Un poco más lejos"
+            else -> result?.hint
+        }
+        var countdown: Int? = null
+        if (st.settings.poseAutoShot && st.capture == null && st.cameraReady) {
+            when (val t = poseTrigger.update(score, now)) {
+                is PoseTrigger.State.Countdown -> countdown = t.secondsLeft(now)
+                PoseTrigger.State.Fire -> capturePhoto()
+                else -> Unit
+            }
+        }
+        _state.update {
+            it.copy(
+                pose = it.pose.copy(
+                    detected = points,
+                    score = score,
+                    mirrored = (score ?: 0f) > 0.5f && result?.mirrored == true,
+                    hint = hint,
+                    countdown = countdown,
+                ),
+            )
+        }
     }
 
     fun setMultiFrame(on: Boolean) = updateSettings(rebindNeeded = true) { it.copy(multiFrame = on) }
@@ -503,6 +645,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun capturePhoto() {
         if (_state.value.capture != null) return
+        poseAnalyzer.paused = true
         val s = settings
         val bind = _state.value.bind
         val look = resolvedLook(s)
@@ -562,6 +705,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             } finally {
                 if (n > 1) applyCaptureOptions()
                 _state.update { it.copy(capture = null) }
+                poseAnalyzer.paused = false
             }
         }
     }
@@ -685,6 +829,8 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     fun formatSeconds(s: Long): String = String.format(Locale.US, "%02d:%02d", s / 60, s % 60)
 
     override fun onCleared() {
+        orientation.stop()
+        poseAnalyzer.close()
         sound.release()
         removeZoomObserver()
         session.release()

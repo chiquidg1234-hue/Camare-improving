@@ -43,10 +43,12 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         if (orientationListener.canDetectOrientation()) orientationListener.enable()
+        vm.onVisible(true)
     }
 
     override fun onStop() {
         orientationListener.disable()
+        vm.onVisible(false)
         super.onStop()
     }
 

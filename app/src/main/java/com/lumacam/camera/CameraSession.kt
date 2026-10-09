@@ -21,6 +21,7 @@ import androidx.camera.core.CameraEffect
 import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.FocusMeteringAction
+import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
@@ -45,6 +46,7 @@ import androidx.camera.video.VideoRecordEvent
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import com.google.common.util.concurrent.ListenableFuture
+import com.lumacam.core.capture.BindAttempts
 import com.lumacam.gl.LookEffect
 import com.lumacam.gl.LookSurfaceProcessor
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -81,6 +83,10 @@ data class BindRequest(
     val fastBurst: Boolean,
     val flashMode: Int,
     val targetRotation: Int,
+    /** Modo poses: la detección de pose pasa a ser lo más importante al combinar funciones. */
+    val poseMode: Boolean = false,
+    /** Analizador de imagen (detección de pose); null = sin análisis. Sólo en modo foto. */
+    val analyzer: ImageAnalysis.Analyzer? = null,
 )
 
 data class BindResult(
@@ -90,6 +96,7 @@ data class BindResult(
     val photoResolution: Size?,
     val previewResolution: Size?,
     val warnings: List<String>,
+    val analysisActive: Boolean = false,
 )
 
 /** Opciones de Camera2 que se aplican sobre las de CameraX. */
@@ -109,6 +116,7 @@ class CameraSession(private val context: Context) {
 
     val processor = LookSurfaceProcessor(context.assets)
     private val mainExecutor: Executor = ContextCompat.getMainExecutor(context)
+    private val analysisExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
 
     private var provider: ProcessCameraProvider? = null
     private var extensionsManager: ExtensionsManager? = null
@@ -212,18 +220,25 @@ class CameraSession(private val context: Context) {
         val targets = if (req.mode == CaptureMode.PHOTO) CameraEffect.PREVIEW
         else CameraEffect.PREVIEW or CameraEffect.VIDEO_CAPTURE
 
-        // Intentos en orden de preferencia: modo del fabricante > look en vista previa/video >
-        // estabilización. Si una combinación no es compatible se prueba la siguiente.
-        val vendors = if (vendor != VendorMode.NONE) listOf(vendor, VendorMode.NONE) else listOf(VendorMode.NONE)
-        val effects = if (req.useEffect) listOf(true, false) else listOf(false)
-        val stabs = if (stab == StabilizationState.PREVIEW_AND_VIDEO || stab == StabilizationState.VIDEO_ONLY) {
-            listOf(stab, StabilizationState.OFF)
-        } else listOf(stab)
+        // Si no todas las funciones caben juntas, se prueba renunciando primero a las menos
+        // importantes. En modo poses manda la detección de pose; si no, el modo del fabricante.
+        val wantsAnalysis = req.analyzer != null && req.mode == CaptureMode.PHOTO
+        val stabRequested = stab == StabilizationState.PREVIEW_AND_VIDEO || stab == StabilizationState.VIDEO_ONLY
+        val features = buildMap {
+            if (wantsAnalysis) put(Feature.ANALYSIS, if (req.poseMode) 8 else 1)
+            if (vendor != VendorMode.NONE) put(Feature.VENDOR, if (req.poseMode) 4 else 8)
+            if (req.useEffect) put(Feature.EFFECT, if (req.poseMode) 2 else 4)
+            if (stabRequested) put(Feature.STABILIZATION, if (req.poseMode) 1 else 2)
+        }
 
         var lastError: Throwable? = null
-        for (v in vendors) for (e in effects) for (st in stabs) {
+        for (set in BindAttempts.ordered(features)) {
+            val v = if (Feature.VENDOR in set) vendor else VendorMode.NONE
+            val e = Feature.EFFECT in set
+            val st = if (Feature.STABILIZATION in set) stab else if (stabRequested) StabilizationState.OFF else stab
+            val withAnalysis = Feature.ANALYSIS in set
             val sel = if (v == VendorMode.NONE) baseSelector else selector
-            val built = buildUseCases(req, st, surfaceProvider)
+            val built = buildUseCases(req, st, surfaceProvider, if (withAnalysis) req.analyzer else null)
             try {
                 val group = UseCaseGroup.Builder().apply {
                     built.all.forEach { addUseCase(it) }
@@ -235,6 +250,9 @@ class CameraSession(private val context: Context) {
                     warnings += "La vista previa con look no es compatible con esta combinación; se muestra sin efectos (la foto sí lleva el look)."
                 }
                 if (st != stab) warnings += "La estabilización no se pudo activar junto con el resto de opciones."
+                if (wantsAnalysis && !withAnalysis) {
+                    warnings += "La detección de pose no se pudo activar en este teléfono con estas opciones; las sugerencias de pose siguen funcionando."
+                }
                 camera = bound
                 preview = built.preview
                 imageCapture = built.imageCapture
@@ -246,9 +264,10 @@ class CameraSession(private val context: Context) {
                     photoResolution = built.imageCapture?.resolutionInfo?.resolution,
                     previewResolution = built.preview.resolutionInfo?.resolution,
                     warnings = warnings,
+                    analysisActive = withAnalysis,
                 )
             } catch (t: Throwable) {
-                Log.w(TAG, "Falló el enlace (fabricante=$v, look=$e, estab=$st)", t)
+                Log.w(TAG, "Falló el enlace ($set)", t)
                 lastError = t
                 provider.unbindAll()
             }
@@ -256,15 +275,23 @@ class CameraSession(private val context: Context) {
         throw lastError ?: IllegalStateException("No se pudo abrir la cámara")
     }
 
+    private enum class Feature { ANALYSIS, VENDOR, EFFECT, STABILIZATION }
+
     private class UseCases(
         val preview: Preview,
         val imageCapture: ImageCapture?,
         val videoCapture: VideoCapture<Recorder>?,
+        val analysis: ImageAnalysis? = null,
     ) {
-        val all: List<UseCase> get() = listOfNotNull(preview, imageCapture, videoCapture)
+        val all: List<UseCase> get() = listOfNotNull(preview, imageCapture, videoCapture, analysis)
     }
 
-    private fun buildUseCases(req: BindRequest, stab: StabilizationState, surfaceProvider: Preview.SurfaceProvider): UseCases {
+    private fun buildUseCases(
+        req: BindRequest,
+        stab: StabilizationState,
+        surfaceProvider: Preview.SurfaceProvider,
+        analyzer: ImageAnalysis.Analyzer?,
+    ): UseCases {
         val aspect = if (req.mode == CaptureMode.PHOTO) AspectRatio.RATIO_4_3 else AspectRatio.RATIO_16_9
         val previewBuilder = Preview.Builder()
             .setResolutionSelector(
@@ -298,7 +325,23 @@ class CameraSession(private val context: Context) {
                         .build(),
                 )
                 .build()
-            return UseCases(newPreview, ic, null)
+            // Análisis a baja resolución (detección de pose), mismo 4:3 que la vista previa
+            // para que los puntos coincidan con lo que se ve en pantalla.
+            val analysis = analyzer?.let { a ->
+                ImageAnalysis.Builder()
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .setResolutionSelector(
+                        ResolutionSelector.Builder()
+                            .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
+                            .setResolutionStrategy(
+                                ResolutionStrategy(Size(640, 480), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER),
+                            )
+                            .build(),
+                    )
+                    .build()
+                    .also { it.setAnalyzer(analysisExecutor, a) }
+            }
+            return UseCases(newPreview, ic, null, analysis)
         }
         val quality = if (req.videoQuality == VideoQualityOption.UHD) Quality.UHD else Quality.FHD
         val recorder = Recorder.Builder()
@@ -418,6 +461,7 @@ class CameraSession(private val context: Context) {
     fun release() {
         unbind()
         processor.release()
+        analysisExecutor.shutdown()
     }
 
     companion object {

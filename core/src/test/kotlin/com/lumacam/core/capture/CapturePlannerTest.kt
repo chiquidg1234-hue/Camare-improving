@@ -56,3 +56,22 @@ class CapturePlannerTest {
         assertEquals(1, p.frames)
     }
 }
+
+class BindAttemptsTest {
+    @Test
+    fun mostImportantFeaturesAreKeptLongest() {
+        val order = BindAttempts.ordered(mapOf("pose" to 8, "fabricante" to 4, "look" to 2, "estab" to 1))
+        assertEquals(16, order.size)
+        assertEquals(setOf("pose", "fabricante", "look", "estab"), order.first())
+        assertEquals(setOf("pose", "fabricante", "look"), order[1])
+        assertEquals(emptySet<String>(), order.last())
+        // Mientras quede alguna opción con "pose", va antes que cualquiera sin ella.
+        val firstWithout = order.indexOfFirst { "pose" !in it }
+        assertTrue(order.drop(firstWithout).none { "pose" in it })
+    }
+
+    @Test
+    fun noFeaturesGivesSingleEmptyAttempt() {
+        assertEquals(listOf(emptySet<String>()), BindAttempts.ordered(emptyMap<String, Int>()))
+    }
+}
