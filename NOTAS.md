@@ -190,7 +190,7 @@ Marca cada una. Si algo falla, copia el **Diagnóstico** y dime qué pasó.
 ## 4. Qué está verificado y qué no
 
 **Verificado aquí (sin teléfono):**
-- Compila: `./gradlew assembleDebug` en GitHub Actions ✔ (APK de ~10 MB).
+- Compila: `./gradlew assembleRelease` en GitHub Actions ✔ (APK firmado de ~37 MB, sólo arm64-v8a, publicado en la Release **lumacam**).
 - Pruebas unitarias de la lógica: 85 en `core` (presets, curvas, LUT, balance de blancos,
   pipeline por franjas, zoom 0.6x, planificador de captura, alineación con rotación, fusión,
   anti-fantasmas, ruido de color, reglas de ráfaga, ángulo de cámara, poses, disparo automático) + 1 en la app. Todas pasan ✔.
