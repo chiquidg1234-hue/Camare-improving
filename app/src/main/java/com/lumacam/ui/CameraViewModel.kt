@@ -2,7 +2,10 @@ package com.lumacam.ui
 
 import android.app.ActivityManager
 import android.app.Application
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.os.Build
+import android.os.SystemClock
 import android.net.Uri
 import android.util.Size
 import android.view.Surface
@@ -28,6 +31,9 @@ import com.lumacam.camera.StabilizationState
 import com.lumacam.camera.VendorMode
 import com.lumacam.camera.VideoQualityOption
 import com.lumacam.core.capture.CapturePlanner
+import com.lumacam.core.dual.DualLayout
+import com.lumacam.core.dual.PipCorner
+import com.lumacam.core.prompter.Teleprompter
 import com.lumacam.core.look.Adjustments
 import com.lumacam.core.look.LookId
 import com.lumacam.core.look.Looks
@@ -45,11 +51,15 @@ import com.lumacam.core.pose.PoseMatcher
 import com.lumacam.core.pose.PoseTemplate
 import com.lumacam.core.pose.PoseTrigger
 import com.lumacam.core.pose.Pt
+import com.lumacam.dual.DualController
+import com.lumacam.dual.DualRenderer
 import com.lumacam.pose.OrientationSensor
 import com.lumacam.pose.PoseAnalyzer
 import com.lumacam.photo.CapturedFrame
 import com.lumacam.photo.PhotoPipeline
 import com.lumacam.settings.AppSettings
+import com.lumacam.settings.Script
+import com.lumacam.settings.ScriptStore
 import com.lumacam.settings.SettingsStore
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -98,6 +108,39 @@ data class PoseUi(
     val current: PoseTemplate? get() = poses.getOrNull(index)
 }
 
+/** Secciones de la fila de modos. */
+enum class Section(val label: String) {
+    PHOTO("FOTO"),
+    POSES("POSES"),
+    VIDEO("VIDEO"),
+    DUAL("DUAL"),
+    PROMPTER("PRESENTAR"),
+}
+
+/** Estado del modo DUAL. */
+data class DualUi(
+    /** Hay lienzo DUAL creado (la vista previa sale de [DualRenderer]). */
+    val active: Boolean = false,
+    /** Las dos cámaras a la vez (true) o por turnos (false); null = aún no se sabe. */
+    val concurrent: Boolean? = null,
+    /** Cámara grande: 0 = trasera, 1 = frontal. */
+    val mainSlot: Int = 0,
+)
+
+/** Estado del teleprompter (modo PRESENTAR). */
+data class PrompterUi(
+    val scripts: List<Script> = emptyList(),
+    val selectedId: Long = 0,
+    /** El texto está subiendo. */
+    val running: Boolean = false,
+    /** Cuenta atrás antes de grabar (3, 2, 1) o null. */
+    val countdown: Int? = null,
+    /** Cambia para volver el texto al principio. */
+    val resetToken: Int = 0,
+) {
+    val script: Script? get() = scripts.firstOrNull { it.id == selectedId } ?: scripts.firstOrNull()
+}
+
 data class UiState(
     val settings: AppSettings,
     val permissionsGranted: Boolean = false,
@@ -133,15 +176,30 @@ data class UiState(
     val benchmark: String? = null,
     val benchmarkRunning: Boolean = false,
     val pose: PoseUi = PoseUi(),
+    val dual: DualUi = DualUi(),
+    val prompter: PrompterUi = PrompterUi(),
 ) {
     val look get() = Looks.byId(settings.lookId)
-    val poseActive: Boolean get() = settings.poseMode && settings.mode == CaptureMode.PHOTO
+    val poseActive: Boolean get() = settings.poseMode && settings.mode == CaptureMode.PHOTO && !settings.dualMode
+    val section: Section
+        get() = when {
+            settings.dualMode -> Section.DUAL
+            settings.mode == CaptureMode.VIDEO && settings.prompterMode -> Section.PROMPTER
+            settings.mode == CaptureMode.VIDEO -> Section.VIDEO
+            settings.poseMode -> Section.POSES
+            else -> Section.PHOTO
+        }
+    val dualActive: Boolean get() = settings.dualMode
+    val prompterActive: Boolean get() = section == Section.PROMPTER
+    /** El disparador graba video (rojo) en vez de hacer fotos. */
+    val videoShutter: Boolean get() = if (settings.dualMode) settings.dualVideo else settings.mode == CaptureMode.VIDEO
     val onUltraWide: Boolean
         get() = zoomPlan?.ultraWide == UltraWideKind.SEPARATE_CAMERA && currentCameraId == zoomPlan?.ultraWideCameraId
 }
 
 class CameraViewModel(app: Application) : AndroidViewModel(app) {
     private val store = SettingsStore(app)
+    private val scriptStore = ScriptStore(app)
     val session = CameraSession(app)
 
     private val _state = MutableStateFlow(UiState(settings = store.load()))
@@ -175,10 +233,27 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
     private val settings get() = _state.value.settings
 
+    // Modo DUAL
+    private var dual: DualController? = null
+    val dualRenderer: DualRenderer? get() = dual?.renderer
+    private var recordTicker: Job? = null
+    /** Parejas de cámaras que el teléfono puede usar a la vez (para el diagnóstico). */
+    private var concurrentCombos = 0
+
+    // Modo PRESENTAR
+    private var countdownJob: Job? = null
+    /** Se pasó sola a la cámara frontal al entrar en PRESENTAR (al salir se vuelve). */
+    private var prompterAutoFront = false
+
     init {
         pushLook()
         loadLastCapture()
-        _state.update { it.copy(pose = it.pose.copy(sensorAvailable = orientation.available)) }
+        _state.update {
+            it.copy(
+                pose = it.pose.copy(sensorAvailable = orientation.available),
+                prompter = it.prompter.copy(scripts = scriptStore.load(), selectedId = scriptStore.selectedId),
+            )
+        }
         viewModelScope.launch {
             orientation.angle.collect { a -> onAngle(a) }
         }
@@ -206,6 +281,9 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     fun detach() {
         owner = null
         surfaceProvider = null
+        countdownJob?.cancel()
+        if (dual?.isRecording == true) stopDualRecording()
+        dual?.unbind()
         bindJob?.cancel()
         watchdogJob?.cancel()
         removeZoomObserver()
@@ -218,6 +296,12 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     fun onVisible(v: Boolean) {
         visible = v
         updateSensor()
+        if (!v) {
+            // En segundo plano la cámara se para: se termina y guarda lo que se estaba grabando.
+            countdownJob?.cancel()
+            _state.update { it.copy(prompter = it.prompter.copy(countdown = null, running = false)) }
+            if (dual?.isRecording == true) stopDualRecording()
+        }
     }
 
     private fun updateSensor() {
@@ -240,6 +324,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 val descriptors = caps.filter { it.id in usable }.map { it.descriptor }
                 plan = ZoomPlanner.plan(descriptors)
+                concurrentCombos = runCatching { session.provider().availableConcurrentCameraInfos.size }.getOrDefault(0)
                 frontId = descriptors.firstOrNull { it.facing == Facing.FRONT }?.id
                 val p = plan
                 if (p == null) {
@@ -272,6 +357,11 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun rebind(zoomAfter: Float? = null) {
+        if (settings.dualMode) {
+            rebindDual()
+            return
+        }
+        releaseDual()
         val o = owner ?: return
         val sp = surfaceProvider ?: return
         val id = _state.value.currentCameraId ?: return
@@ -352,6 +442,173 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ---------- Modo DUAL ----------
+
+    private fun ensureDual(): DualController =
+        dual ?: DualController(getApplication<Application>(), session).also {
+            dual = it
+            _state.update { st -> st.copy(dual = st.dual.copy(active = true)) }
+        }
+
+    private fun releaseDual() {
+        val d = dual ?: return
+        if (d.isRecording) stopDualRecording()
+        recordTicker?.cancel()
+        d.release()
+        dual = null
+        _state.update { it.copy(dual = DualUi()) }
+    }
+
+    private fun rebindDual() {
+        val o = owner ?: return
+        val p = plan ?: return
+        bindJob?.cancel()
+        watchdogJob?.cancel()
+        _state.update { it.copy(cameraReady = false) }
+        val d = ensureDual()
+        bindJob = viewModelScope.launch {
+            val s = settings
+            val front = frontId
+            if (front == null) {
+                _state.update { it.copy(message = "El modo DUAL necesita una cámara frontal.") }
+                return@launch
+            }
+            val glOk = kotlinx.coroutines.withTimeoutOrNull(4000) { d.renderer.ready.await() } ?: false
+            if (!glOk) {
+                _state.update { it.copy(message = "El modo DUAL necesita OpenGL y no arrancó (${d.renderer.initError ?: "no respondió"}).") }
+                return@launch
+            }
+            d.renderer.setLook(resolvedLook(s))
+            d.setLayout(s.dualLayout, s.pipCorner)
+            try {
+                removeZoomObserver()
+                val r = d.bind(o, p.cameraId, front, s.dualVideo, s.flashMode, if (s.dualFrontMain) 1 else 0)
+                _state.update {
+                    it.copy(
+                        cameraReady = true,
+                        zoomStops = emptyList(),
+                        warnings = r.warnings,
+                        dual = it.dual.copy(active = true, concurrent = r.concurrent, mainSlot = d.renderer.mainSlot),
+                    )
+                }
+            } catch (t: kotlinx.coroutines.CancellationException) {
+                throw t
+            } catch (t: Throwable) {
+                _state.update { it.copy(cameraReady = false, message = "No se pudo abrir el modo DUAL: ${t.message}") }
+            }
+        }
+    }
+
+    /** Botón de cambiar en DUAL: intercambia la cámara grande (o abre la otra, por turnos). */
+    fun dualSwap() {
+        val d = dual ?: return
+        if (_state.value.capture != null) return
+        viewModelScope.launch {
+            try {
+                val main = d.swap()
+                updateSettings { it.copy(dualFrontMain = main == 1) }
+                _state.update { it.copy(dual = it.dual.copy(mainSlot = main)) }
+            } catch (t: kotlinx.coroutines.CancellationException) {
+                throw t
+            } catch (t: Throwable) {
+                _state.update { it.copy(message = "No se pudo cambiar de cámara: ${t.message}") }
+            }
+        }
+    }
+
+    fun setDualLayout(layout: DualLayout) {
+        updateSettings { it.copy(dualLayout = layout) }
+        dual?.setLayout(layout, settings.pipCorner)
+    }
+
+    /** Mueve la ventanita a la siguiente esquina. */
+    fun cycleDualCorner() {
+        val next = PipCorner.entries[(settings.pipCorner.ordinal + 1) % PipCorner.entries.size]
+        updateSettings { it.copy(pipCorner = next) }
+        dual?.setLayout(settings.dualLayout, next)
+    }
+
+    fun setDualVideo(on: Boolean) {
+        if (_state.value.recording || _state.value.capture != null) return
+        updateSettings(rebindNeeded = true) { it.copy(dualVideo = on) }
+    }
+
+    private fun captureDualPhoto() {
+        val d = dual ?: return
+        if (_state.value.capture != null) return
+        val s = settings
+        val look = resolvedLook(s)
+        viewModelScope.launch {
+            _state.update { it.copy(capture = CaptureProgress("Capturando…", 0f)) }
+            try {
+                val result = d.takePhoto(
+                    look, s.jpegQuality, s.dualLayout, s.pipCorner,
+                    onShutter = { sound.play(android.media.MediaActionSound.SHUTTER_CLICK) },
+                    progress = { text, pr -> _state.update { it.copy(capture = CaptureProgress(text, pr)) } },
+                )
+                _state.update {
+                    it.copy(
+                        lastThumbnail = result.thumbnail,
+                        lastUri = result.uri,
+                        lastIsVideo = false,
+                        message = "Foto doble guardada · ${result.width}x${result.height}",
+                        dual = it.dual.copy(mainSlot = d.renderer.mainSlot),
+                    )
+                }
+            } catch (t: kotlinx.coroutines.CancellationException) {
+                throw t
+            } catch (t: Throwable) {
+                _state.update { it.copy(message = "Error en la foto doble: ${t.message ?: t.javaClass.simpleName}") }
+            } finally {
+                _state.update { it.copy(capture = null) }
+            }
+        }
+    }
+
+    private fun toggleDualRecording() {
+        val d = dual ?: return
+        if (d.isRecording) {
+            stopDualRecording()
+            return
+        }
+        try {
+            d.startRecording(audio = _state.value.audioGranted)
+        } catch (t: Throwable) {
+            _state.update { it.copy(message = "No se pudo empezar a grabar: ${t.message ?: t.javaClass.simpleName}") }
+            return
+        }
+        sound.play(android.media.MediaActionSound.START_VIDEO_RECORDING)
+        _state.update { it.copy(recording = true, recordingSeconds = 0) }
+        val start = SystemClock.elapsedRealtime()
+        recordTicker?.cancel()
+        recordTicker = viewModelScope.launch {
+            while (true) {
+                delay(500)
+                _state.update { it.copy(recordingSeconds = (SystemClock.elapsedRealtime() - start) / 1000) }
+            }
+        }
+    }
+
+    private fun stopDualRecording() {
+        val d = dual ?: return
+        recordTicker?.cancel()
+        recordTicker = null
+        val uri = try {
+            d.stopRecording()
+        } catch (t: Throwable) {
+            android.util.Log.w("LumaCam", "Error al terminar la grabación DUAL", t)
+            null
+        }
+        sound.play(android.media.MediaActionSound.STOP_VIDEO_RECORDING)
+        _state.update { it.copy(recording = false) }
+        if (uri != null) {
+            _state.update { it.copy(lastUri = uri, lastIsVideo = true, message = "Video doble guardado en Películas/LumaCam") }
+            loadVideoThumbnail(uri)
+        } else {
+            _state.update { it.copy(message = "No se llegó a grabar nada.") }
+        }
+    }
+
     /**
      * Si con el efecto OpenGL no se dibuja ningún frame en unos segundos (vista previa negra),
      * se vuelve a abrir la cámara sin efecto. La foto sigue llevando el look (se hace en CPU).
@@ -404,7 +661,9 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         ResolvedLook.resolve(Looks.byId(s.lookId), s.intensity, s.adjustments)
 
     private fun pushLook() {
-        session.processor.setLook(resolvedLook())
+        val look = resolvedLook()
+        session.processor.setLook(look)
+        dual?.renderer?.setLook(look)
     }
 
     private fun updateSettings(rebindNeeded: Boolean = false, f: (AppSettings) -> AppSettings) {
@@ -433,13 +692,111 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------- Ajustes que requieren volver a enlazar ----------
 
-    fun setMode(mode: CaptureMode) = selectMode(mode, pose = false)
-
-    /** FOTO, POSES (foto con guía de poses) o VIDEO. */
-    fun selectMode(mode: CaptureMode, pose: Boolean) {
-        if (_state.value.recording || _state.value.capture != null) return
-        updateSettings(rebindNeeded = true) { it.copy(mode = mode, poseMode = pose && mode == CaptureMode.PHOTO) }
+    /** FOTO, POSES, VIDEO, DUAL (dos cámaras) o PRESENTAR (video con teleprompter). */
+    fun selectSection(section: Section) {
+        val st = _state.value
+        if (st.recording || st.capture != null || section == st.section) return
+        countdownJob?.cancel()
+        val leavingPrompter = st.section == Section.PROMPTER
+        updateSettings {
+            it.copy(
+                mode = if (section == Section.VIDEO || section == Section.PROMPTER) CaptureMode.VIDEO else CaptureMode.PHOTO,
+                poseMode = section == Section.POSES,
+                dualMode = section == Section.DUAL,
+                prompterMode = section == Section.PROMPTER,
+            )
+        }
+        _state.update { it.copy(prompter = it.prompter.copy(running = false, countdown = null)) }
+        // PRESENTAR usa la cámara frontal (mirar al texto es mirar a la cámara); al salir se
+        // vuelve a la trasera si el cambio fue automático.
+        var zoom: Float? = null
+        val p = plan
+        val front = frontId
+        if (section == Section.PROMPTER && front != null && st.currentCameraId != front) {
+            prompterAutoFront = true
+            updateSettings { it.copy(front = true) }
+            _state.update { it.copy(currentCameraId = front) }
+            zoom = 1f
+        } else if (leavingPrompter && prompterAutoFront && p != null) {
+            prompterAutoFront = false
+            updateSettings { it.copy(front = false) }
+            _state.update { it.copy(currentCameraId = p.cameraId) }
+            zoom = p.initialZoomRatio
+        }
+        rebind(zoom)
         updateSensor()
+    }
+
+    // ---------- Modo PRESENTAR (teleprompter) ----------
+
+    private fun prompterShutter() {
+        if (session.isRecording) {
+            session.stopRecording()
+            return
+        }
+        if (countdownJob?.isActive == true) {
+            countdownJob?.cancel()
+            _state.update { it.copy(prompter = it.prompter.copy(countdown = null)) }
+            return
+        }
+        if (!settings.prompterCountdown) {
+            toggleRecording()
+            return
+        }
+        countdownJob = viewModelScope.launch {
+            try {
+                for (i in 3 downTo 1) {
+                    _state.update { it.copy(prompter = it.prompter.copy(countdown = i)) }
+                    delay(1000)
+                }
+            } finally {
+                _state.update { it.copy(prompter = it.prompter.copy(countdown = null)) }
+            }
+            toggleRecording()
+        }
+    }
+
+    fun prompterToggle() = _state.update { it.copy(prompter = it.prompter.copy(running = !it.prompter.running)) }
+
+    /** El texto llegó al final. */
+    fun prompterFinished() = _state.update { it.copy(prompter = it.prompter.copy(running = false)) }
+
+    fun prompterRestart() = _state.update {
+        it.copy(prompter = it.prompter.copy(running = false, resetToken = it.prompter.resetToken + 1))
+    }
+
+    fun setPrompterWpm(wpm: Int) = updateSettings { it.copy(prompterWpm = Teleprompter.clampWpm(wpm)) }
+    fun setPrompterTextSize(sp: Int) = updateSettings { it.copy(prompterTextSp = Teleprompter.clampTextSize(sp)) }
+    fun setPrompterMirror(on: Boolean) = updateSettings { it.copy(prompterMirror = on) }
+    fun setPrompterCountdown(on: Boolean) = updateSettings { it.copy(prompterCountdown = on) }
+
+    fun selectScript(id: Long) {
+        scriptStore.selectedId = id
+        _state.update { it.copy(prompter = it.prompter.copy(selectedId = id, running = false, resetToken = it.prompter.resetToken + 1)) }
+    }
+
+    /** Guarda un guion (nuevo si [id] es null) y lo deja elegido. */
+    fun saveScript(id: Long?, text: String) {
+        val list = _state.value.prompter.scripts
+        val newId = id ?: (System.currentTimeMillis())
+        val script = Script(newId, Teleprompter.titleFor(text), text)
+        val updated = if (list.any { it.id == newId }) list.map { if (it.id == newId) script else it } else list + script
+        scriptStore.save(updated)
+        scriptStore.selectedId = newId
+        _state.update {
+            it.copy(prompter = it.prompter.copy(scripts = updated, selectedId = newId, running = false, resetToken = it.prompter.resetToken + 1))
+        }
+    }
+
+    fun deleteScript(id: Long) {
+        val remaining = _state.value.prompter.scripts.filter { it.id != id }
+        scriptStore.save(remaining)
+        val list = scriptStore.load()
+        val selected = list.first().id
+        scriptStore.selectedId = selected
+        _state.update {
+            it.copy(prompter = it.prompter.copy(scripts = list, selectedId = selected, running = false, resetToken = it.prompter.resetToken + 1))
+        }
     }
 
     // ---------- Modo poses ----------
@@ -548,9 +905,14 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         }
         updateSettings { it.copy(flashMode = next) }
         session.setFlashMode(next)
+        dual?.setFlashMode(next)
     }
 
     fun switchFacing() {
+        if (settings.dualMode) {
+            dualSwap()
+            return
+        }
         if (_state.value.recording || _state.value.capture != null) return
         val p = plan ?: return
         val front = frontId ?: return
@@ -574,6 +936,10 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun pinchZoom(scale: Float) {
+        dual?.let {
+            it.pinchZoom(scale)
+            return
+        }
         val s = _state.value
         val target = (s.zoomRatio * scale).coerceIn(s.minZoom, s.maxZoom)
         session.setZoomRatio(target)
@@ -633,7 +999,13 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
     fun onShutter() {
         if (!_state.value.cameraReady) return
-        if (settings.mode == CaptureMode.VIDEO) toggleRecording() else capturePhoto()
+        val s = settings
+        when {
+            s.dualMode -> if (s.dualVideo) toggleDualRecording() else captureDualPhoto()
+            s.mode == CaptureMode.VIDEO && s.prompterMode -> prompterShutter()
+            s.mode == CaptureMode.VIDEO -> toggleRecording()
+            else -> capturePhoto()
+        }
     }
 
     private fun memoryBudget(): Long {
@@ -719,14 +1091,21 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             when (event) {
                 is VideoRecordEvent.Start -> {
                     sound.play(android.media.MediaActionSound.START_VIDEO_RECORDING)
-                    _state.update { it.copy(recording = true, recordingSeconds = 0) }
+                    // En PRESENTAR el texto empieza a subir con la grabación.
+                    _state.update {
+                        it.copy(
+                            recording = true,
+                            recordingSeconds = 0,
+                            prompter = if (it.prompterActive) it.prompter.copy(running = true) else it.prompter,
+                        )
+                    }
                 }
                 is VideoRecordEvent.Status -> _state.update {
                     it.copy(recordingSeconds = event.recordingStats.recordedDurationNanos / 1_000_000_000L)
                 }
                 is VideoRecordEvent.Finalize -> {
                     sound.play(android.media.MediaActionSound.STOP_VIDEO_RECORDING)
-                    _state.update { it.copy(recording = false) }
+                    _state.update { it.copy(recording = false, prompter = it.prompter.copy(running = false)) }
                     if (event.hasError() && event.error != VideoRecordEvent.Finalize.ERROR_NONE) {
                         _state.update { it.copy(message = "Error al grabar (${event.error}): ${event.cause?.message ?: ""}") }
                     }
@@ -814,6 +1193,12 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         val c = currentCaps()
         appendLine("HDR por escena (Camera2): ${c?.hdrSceneMode == true}; OIS: ${c?.hasOis == true}; rango FPS para noche: ${c?.longExposureFpsRange() ?: "-"}")
         appendLine("Memoria para fotos: ${memoryBudget() / 1_000_000} MB")
+        val pm = getApplication<Application>().packageManager
+        val concurrent = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && pm.hasSystemFeature(PackageManager.FEATURE_CAMERA_CONCURRENT)
+        appendLine(
+            "Dos cámaras a la vez (modo DUAL): " +
+                if (concurrent && concurrentCombos > 0) "sí ($concurrentCombos combinaciones)" else "no; la foto doble se hace en dos pasos",
+        )
         result.warnings.forEach { appendLine("Aviso: $it") }
         appendLine()
         append(DeviceProbe.report(caps))
@@ -829,6 +1214,9 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     fun formatSeconds(s: Long): String = String.format(Locale.US, "%02d:%02d", s / 60, s % 60)
 
     override fun onCleared() {
+        countdownJob?.cancel()
+        dual?.release()
+        dual = null
         orientation.stop()
         poseAnalyzer.close()
         sound.release()

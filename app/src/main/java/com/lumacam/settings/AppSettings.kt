@@ -6,8 +6,11 @@ import com.lumacam.camera.CaptureMode
 import com.lumacam.camera.ResolutionMode
 import com.lumacam.camera.VendorMode
 import com.lumacam.camera.VideoQualityOption
+import com.lumacam.core.dual.DualLayout
+import com.lumacam.core.dual.PipCorner
 import com.lumacam.core.look.Adjustments
 import com.lumacam.core.look.LookId
+import com.lumacam.core.prompter.Teleprompter
 
 /** Preferencias que se guardan entre sesiones. */
 data class AppSettings(
@@ -36,6 +39,22 @@ data class AppSettings(
     val poseDetection: Boolean = true,
     /** Disparar solo cuando la pose coincide (cuenta atrás de 3 s). */
     val poseAutoShot: Boolean = true,
+    /** Modo DUAL: cámara trasera y frontal a la vez (estilo BeReal). */
+    val dualMode: Boolean = false,
+    /** Dentro de DUAL: video en vez de foto. */
+    val dualVideo: Boolean = false,
+    val dualLayout: DualLayout = DualLayout.PIP,
+    val pipCorner: PipCorner = PipCorner.TOP_LEFT,
+    /** La cámara frontal va grande y la trasera en la ventanita. */
+    val dualFrontMain: Boolean = false,
+    /** Modo PRESENTAR: video con teleprompter. */
+    val prompterMode: Boolean = false,
+    val prompterWpm: Int = Teleprompter.DEFAULT_WPM,
+    val prompterTextSp: Int = Teleprompter.DEFAULT_TEXT_SP,
+    /** Texto en espejo (para teleprompters de cristal). */
+    val prompterMirror: Boolean = false,
+    /** Cuenta atrás de 3 s antes de grabar. */
+    val prompterCountdown: Boolean = true,
 )
 
 class SettingsStore(context: Context) {
@@ -76,6 +95,16 @@ class SettingsStore(context: Context) {
             poseMode = p.getBoolean("pose_mode", d.poseMode),
             poseDetection = p.getBoolean("pose_detection", d.poseDetection),
             poseAutoShot = p.getBoolean("pose_auto_shot", d.poseAutoShot),
+            dualMode = p.getBoolean("dual_mode", d.dualMode),
+            dualVideo = p.getBoolean("dual_video", d.dualVideo),
+            dualLayout = enumOr(p.getString("dual_layout", null), d.dualLayout),
+            pipCorner = enumOr(p.getString("pip_corner", null), d.pipCorner),
+            dualFrontMain = p.getBoolean("dual_front_main", d.dualFrontMain),
+            prompterMode = p.getBoolean("prompter_mode", d.prompterMode),
+            prompterWpm = Teleprompter.clampWpm(p.getInt("prompter_wpm", d.prompterWpm)),
+            prompterTextSp = Teleprompter.clampTextSize(p.getInt("prompter_text_sp", d.prompterTextSp)),
+            prompterMirror = p.getBoolean("prompter_mirror", d.prompterMirror),
+            prompterCountdown = p.getBoolean("prompter_countdown", d.prompterCountdown),
         )
     }
 
@@ -110,6 +139,16 @@ class SettingsStore(context: Context) {
             .putBoolean("pose_mode", s.poseMode)
             .putBoolean("pose_detection", s.poseDetection)
             .putBoolean("pose_auto_shot", s.poseAutoShot)
+            .putBoolean("dual_mode", s.dualMode)
+            .putBoolean("dual_video", s.dualVideo)
+            .putString("dual_layout", s.dualLayout.name)
+            .putString("pip_corner", s.pipCorner.name)
+            .putBoolean("dual_front_main", s.dualFrontMain)
+            .putBoolean("prompter_mode", s.prompterMode)
+            .putInt("prompter_wpm", s.prompterWpm)
+            .putInt("prompter_text_sp", s.prompterTextSp)
+            .putBoolean("prompter_mirror", s.prompterMirror)
+            .putBoolean("prompter_countdown", s.prompterCountdown)
             .apply()
     }
 

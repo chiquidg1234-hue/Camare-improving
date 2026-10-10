@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
@@ -24,6 +25,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.lumacam.BuildConfig
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -36,6 +40,8 @@ import com.lumacam.camera.ResolutionMode
 import com.lumacam.camera.VendorMode
 import com.lumacam.camera.VideoQualityOption
 import com.lumacam.core.look.Adjustments
+import com.lumacam.update.AppUpdater
+import com.lumacam.update.UpdateState
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -54,6 +60,9 @@ fun SettingsSheet(state: UiState, vm: CameraViewModel, onDismiss: () -> Unit) {
                 .navigationBarsPadding()
                 .padding(bottom = 24.dp),
         ) {
+            // ---- Actualizaciones ----
+            UpdateSection()
+
             // ---- Exposición ----
             SectionTitle("Exposición")
             val e = state.exposure
@@ -148,7 +157,61 @@ fun SettingsSheet(state: UiState, vm: CameraViewModel, onDismiss: () -> Unit) {
             if (s.mode == CaptureMode.VIDEO) {
                 state.bind?.let { Hint("Estado: ${vm.stabText(it.stabilization)}") }
             }
+
+            // ---- PRESENTAR ----
+            SectionTitle("Modo PRESENTAR (teleprompter)")
+            SwitchRow("Cuenta atrás de 3 s antes de grabar", s.prompterCountdown, vm::setPrompterCountdown)
+            SwitchRow("Texto en espejo (para teleprompter de cristal)", s.prompterMirror, vm::setPrompterMirror)
+            Hint("El texto empieza a subir al empezar a grabar. Tócalo para pausar; arrástralo para adelantar o volver.")
+
+            // ---- DUAL ----
+            SectionTitle("Modo DUAL (dos cámaras)")
+            Hint(
+                when (state.dual.concurrent) {
+                    true -> "Tu teléfono usa las dos cámaras a la vez."
+                    false -> "Tu teléfono no deja usar las dos cámaras a la vez: la foto doble se hace en dos pasos seguidos y el video graba una cámara (cámbiala mientras grabas)."
+                    null -> "Entra en DUAL para comprobar si tu teléfono puede usar las dos cámaras a la vez."
+                },
+            )
             Spacer(Modifier.height(12.dp))
+        }
+    }
+}
+
+/** Versión instalada y botón para buscar e instalar la última desde GitHub. */
+@Composable
+private fun UpdateSection() {
+    val context = LocalContext.current
+    val update by AppUpdater.state.collectAsStateWithLifecycle()
+    SectionTitle("Actualizaciones")
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text("Versión instalada ${BuildConfig.VERSION_NAME}", fontSize = 14.sp)
+            val status = when (val u = update) {
+                UpdateState.Idle -> "Toca para comprobar si hay una versión nueva."
+                UpdateState.Checking -> "Buscando…"
+                UpdateState.UpToDate -> "Tienes la última versión."
+                is UpdateState.Available -> "Hay una versión nueva: ${u.info.versionName}"
+                is UpdateState.NeedsPermission -> "Falta permitir que LumaCam instale apps (aviso arriba del visor)."
+                is UpdateState.Downloading -> "Descargando ${u.info.versionName}… ${u.progress?.let { "${(it * 100).roundToInt()}%" } ?: ""}"
+                is UpdateState.Confirm -> "Toca «Actualizar» en el aviso de Android."
+                is UpdateState.Installing -> "Instalando ${u.info.versionName}…"
+                is UpdateState.Failed -> u.message
+            }
+            Text(status, color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+        }
+        when (val u = update) {
+            is UpdateState.Available -> Button(onClick = { AppUpdater.install(context, u.info) }) { Text("Actualizar") }
+            is UpdateState.Failed -> {
+                val info = u.info
+                if (info != null) {
+                    Button(onClick = { AppUpdater.install(context, info) }) { Text("Reintentar") }
+                } else {
+                    TextButton(onClick = { AppUpdater.check(context, force = true) }) { Text("Buscar") }
+                }
+            }
+            UpdateState.Idle, UpdateState.UpToDate -> TextButton(onClick = { AppUpdater.check(context, force = true) }) { Text("Buscar") }
+            else -> Unit
         }
     }
 }

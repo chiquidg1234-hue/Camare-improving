@@ -31,8 +31,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -137,6 +139,7 @@ private fun CameraContent(vm: CameraViewModel, state: UiState) {
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var showDiagnostics by rememberSaveable { mutableStateOf(false) }
     var showInvite by rememberSaveable { mutableStateOf(false) }
+    var showScriptEditor by rememberSaveable { mutableStateOf(false) }
     val dismissed = remember { mutableStateListOf<String>() }
 
     val previewView = remember {
@@ -164,7 +167,11 @@ private fun CameraContent(vm: CameraViewModel, state: UiState) {
     }
 
     val settings = state.settings
-    val aspect = if (settings.mode == CaptureMode.PHOTO) 3f / 4f else 9f / 16f
+    val aspect = when {
+        state.dualActive -> if (settings.dualVideo) 9f / 16f else 3f / 4f
+        settings.mode == CaptureMode.PHOTO -> 3f / 4f
+        else -> 9f / 16f
+    }
 
     Column(Modifier.fillMaxSize()) {
         TopBar(
@@ -181,10 +188,45 @@ private fun CameraContent(vm: CameraViewModel, state: UiState) {
                 .fillMaxWidth()
                 .aspectRatio(aspect),
         ) {
-            AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
-            if (settings.grid && !state.poseActive) GridOverlay()
-            ViewfinderGestures(vm, previewView)
-            FocusRing(state.focus)
+            val dualRenderer = vm.dualRenderer
+            if (state.dualActive && dualRenderer != null) {
+                DualViewfinder(
+                    renderer = dualRenderer,
+                    layout = settings.dualLayout,
+                    corner = settings.pipCorner,
+                    single = state.dual.concurrent == false,
+                    onSwap = vm::dualSwap,
+                    onPinch = vm::pinchZoom,
+                )
+            } else if (!state.dualActive) {
+                AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+                if (settings.grid && !state.poseActive && !state.prompterActive) GridOverlay()
+                ViewfinderGestures(vm, previewView)
+                FocusRing(state.focus)
+            }
+            if (state.prompterActive) {
+                PrompterOverlay(
+                    prompter = state.prompter,
+                    settings = settings,
+                    onToggle = vm::prompterToggle,
+                    onRestart = vm::prompterRestart,
+                    onFinished = vm::prompterFinished,
+                    onWpm = vm::setPrompterWpm,
+                    onTextSize = vm::setPrompterTextSize,
+                    onMirror = vm::setPrompterMirror,
+                    onEdit = { showScriptEditor = true },
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
+                state.prompter.countdown?.let { n ->
+                    Text(
+                        "$n",
+                        color = Color.White,
+                        fontSize = 110.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.align(Alignment.Center),
+                    )
+                }
+            }
             if (state.poseActive) {
                 PoseOverlay(
                     pose = state.pose,
@@ -213,7 +255,7 @@ private fun CameraContent(vm: CameraViewModel, state: UiState) {
                     Spacer(Modifier.height(6.dp))
                 }
             }
-            Text(
+            if (!state.dualActive) Text(
                 if (state.bind?.effectActive == true) "${state.previewFps} fps" else "sin look en vista previa",
                 color = Color.White.copy(alpha = 0.6f),
                 fontSize = 11.sp,
@@ -263,6 +305,15 @@ private fun CameraContent(vm: CameraViewModel, state: UiState) {
 
     if (showSettings) SettingsSheet(state, vm) { showSettings = false }
     if (showInvite) InviteDialog { showInvite = false }
+    if (showScriptEditor) {
+        ScriptEditorDialog(
+            prompter = state.prompter,
+            wpm = settings.prompterWpm,
+            onSave = vm::saveScript,
+            onDelete = vm::deleteScript,
+            onDismiss = { showScriptEditor = false },
+        )
+    }
     if (showDiagnostics) {
         val text = listOfNotNull(state.benchmark, state.diagnostics).joinToString("\n\n")
         DiagnosticsDialog(text, state.benchmarkRunning, onBenchmark = vm::runBenchmark) { showDiagnostics = false }
@@ -394,7 +445,7 @@ private fun TopBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        if (state.hasFlash && state.settings.mode == CaptureMode.PHOTO) {
+        if (state.hasFlash && !state.videoShutter) {
             val label = when (state.settings.flashMode) {
                 ImageCapture.FLASH_MODE_AUTO -> "Flash A"
                 ImageCapture.FLASH_MODE_ON -> "Flash ON"
@@ -402,8 +453,10 @@ private fun TopBar(
             }
             ToggleChip(label, state.settings.flashMode != ImageCapture.FLASH_MODE_OFF, onFlash)
         }
-        ToggleChip("AE-L", state.aeLock, onAeLock)
-        ToggleChip("AWB-L", state.awbLock, onAwbLock)
+        if (!state.dualActive) {
+            ToggleChip("AE-L", state.aeLock, onAeLock)
+            ToggleChip("AWB-L", state.awbLock, onAwbLock)
+        }
         val hdrOn = state.bind?.vendorMode?.let { it.name != "NONE" } == true ||
             (state.settings.sceneHdr && state.sceneHdrAvailable)
         if (hdrOn) ToggleChip(state.bind?.vendorMode?.takeIf { it.name != "NONE" }?.label ?: "HDR", true) { onSettings() }
@@ -439,8 +492,9 @@ private fun BottomControls(state: UiState, vm: CameraViewModel, onOpenLast: () -
             .padding(top = 8.dp, bottom = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Zoom
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        // Zoom (o las opciones del modo DUAL)
+        if (state.dualActive) DualControls(state, vm)
+        else Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             for (stop in state.zoomStops) {
                 val selected = stop.cameraId == state.currentCameraId && abs(state.zoomRatio - stop.zoomRatio) < 0.05f
                 ZoomButton(stop.label, selected) { vm.selectZoomStop(stop) }
@@ -490,7 +544,7 @@ private fun BottomControls(state: UiState, vm: CameraViewModel, onOpenLast: () -
             }
             val haptics = LocalHapticFeedback.current
             ShutterButton(
-                mode = s.mode,
+                video = state.videoShutter,
                 recording = state.recording,
                 busy = state.capture != null,
                 enabled = state.cameraReady,
@@ -501,17 +555,22 @@ private fun BottomControls(state: UiState, vm: CameraViewModel, onOpenLast: () -
             )
             Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
                 if (state.hasFront) {
-                    IconButton(onClick = vm::switchFacing, enabled = !state.recording && state.capture == null) {
+                    // En DUAL también funciona grabando (intercambia o pasa a la otra cámara).
+                    val canSwitch = state.capture == null && (state.dualActive || !state.recording)
+                    IconButton(onClick = vm::switchFacing, enabled = canSwitch) {
                         Icon(Icons.Default.Refresh, contentDescription = "Cambiar cámara", tint = Color.White, modifier = Modifier.size(30.dp))
                     }
                 }
             }
         }
         Spacer(Modifier.height(6.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-            ModeLabel("FOTO", s.mode == CaptureMode.PHOTO && !s.poseMode) { vm.selectMode(CaptureMode.PHOTO, pose = false) }
-            ModeLabel("POSES", s.mode == CaptureMode.PHOTO && s.poseMode) { vm.selectMode(CaptureMode.PHOTO, pose = true) }
-            ModeLabel("VIDEO", s.mode == CaptureMode.VIDEO) { vm.selectMode(CaptureMode.VIDEO, pose = false) }
+        Row(
+            Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            for (section in Section.entries) {
+                ModeLabel(section.label, state.section == section) { vm.selectSection(section) }
+            }
         }
     }
 }
@@ -543,10 +602,10 @@ private fun ModeLabel(label: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ShutterButton(mode: CaptureMode, recording: Boolean, busy: Boolean, enabled: Boolean, onClick: () -> Unit) {
+private fun ShutterButton(video: Boolean, recording: Boolean, busy: Boolean, enabled: Boolean, onClick: () -> Unit) {
     val inner = when {
-        mode == CaptureMode.VIDEO && recording -> Color(0xFFD32F2F)
-        mode == CaptureMode.VIDEO -> Color(0xFFE53935)
+        video && recording -> Color(0xFFD32F2F)
+        video -> Color(0xFFE53935)
         busy -> Color.Gray
         else -> Color.White
     }

@@ -173,6 +173,18 @@ object PhotoPipeline {
         PhotoResult(uri, thumb, w, h, framesUsed, summary)
     }
 
+    /** Guarda una imagen ya terminada y derecha (p. ej. la foto doble del modo DUAL). */
+    suspend fun saveFinished(
+        context: Context,
+        bitmap: Bitmap,
+        jpegQuality: Int,
+        sourceJpeg: ByteArray?,
+        summary: String,
+    ): PhotoResult = withContext(Dispatchers.IO) {
+        val uri = save(context, bitmap, jpegQuality, 0, sourceJpeg, summary)
+        PhotoResult(uri, thumbnail(bitmap, 0), bitmap.width, bitmap.height, 1, summary)
+    }
+
     /** Aplica el look por franjas en paralelo (memoria de Java acotada). */
     suspend fun applyLook(
         src: Bitmap,
