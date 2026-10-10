@@ -194,7 +194,7 @@ private fun CameraContent(vm: CameraViewModel, state: UiState) {
                     renderer = dualRenderer,
                     layout = settings.dualLayout,
                     corner = settings.pipCorner,
-                    single = state.dual.concurrent == false,
+                    single = state.dual.concurrent == false && settings.dualVideo,
                     onSwap = vm::dualSwap,
                     onPinch = vm::pinchZoom,
                 )

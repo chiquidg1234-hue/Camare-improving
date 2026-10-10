@@ -122,7 +122,7 @@ de 4 fotos de 12 MP, el look y el JPEG (pégame también ese resultado).
   la siguiente en orden y te dice qué se desactivó.
 - Si sales de la app mientras procesa una foto, la foto se termina de guardar igual.
 
-### Modo POSES (nuevo)
+### Modo POSES
 
 Pestaña **POSES** (entre FOTO y VIDEO). Es el modo foto con una guía para posar:
 
@@ -141,6 +141,51 @@ Pestaña **POSES** (entre FOTO y VIDEO). Es el modo foto con una guía para posa
 - **Disparo automático:** si mantienes la pose (≥ 80 % de coincidencia) cuenta 3, 2, 1 y hace
   la foto sola (con el look y el multi-frame de siempre). Ideal para selfies o con el teléfono
   apoyado.
+
+### Modo DUAL: las dos cámaras (nuevo)
+
+Pestaña **DUAL**, estilo BeReal: cámara trasera grande y frontal en una **ventanita** con
+esquinas redondeadas, o las dos en **mitades** (arriba y abajo).
+
+- **Foto / Video** dentro de DUAL. Los looks y la intensidad se aplican a las dos cámaras.
+- **Tocar la ventanita** (o el botón ⟲) intercambia qué cámara va grande. **Esquina** mueve la
+  ventanita. **Pellizcar** hace zoom en la cámara grande.
+- **Foto doble:** se guarda en Galería → Pictures/LumaCam tal como se ve (unos 6 MP, 3:4), con
+  el look aplicado a cada cámara. La selfie queda en espejo, igual que en la pantalla.
+- **Video doble:** se graba el cuadro compuesto (1080x1920, con sonido) en Películas/LumaCam.
+
+**Depende del teléfono.** Android sólo deja usar las dos cámaras a la vez si el fabricante lo
+activa ("concurrent camera"). LumaCam lo comprueba solo (también sale en ⓘ Diagnóstico):
+- **Si se puede:** las dos cámaras en vivo, en foto y en video.
+- **Si no se puede** (es lo más probable en el Honor X7c): la foto doble se hace **en dos
+  pasos seguidos**, como hace BeReal en muchos teléfonos: primero la cámara que se ve, enseguida
+  la otra ("¡sonríe!") y se juntan. En la ventanita queda la última imagen de la otra cámara.
+  En video se graba **una cámara a la vez** y puedes **cambiar de cámara en plena grabación**
+  con ⟲ (el video sigue, con un corte de ~1 s).
+
+### Modo PRESENTAR: teleprompter (nuevo)
+
+Pestaña **PRESENTAR**: grabas video con la **cámara frontal** y tu discurso va subiendo en la
+parte de arriba de la pantalla, pegado a la cámara, para que al leer parezca que miras a quien
+te ve.
+
+- **✎ Editar:** escribe o **pega** tu discurso. Se guardan varios guiones; tócalos para
+  cambiar entre ellos.
+- **Velocidad en palabras por minuto** (− / +, 60 a 260) con la **duración estimada**. 130 ppm
+  es un ritmo de presentación tranquilo.
+- **A− / A+** tamaño de letra, **⇋** texto en espejo (para teleprompters con cristal),
+  **⟲** volver al principio, **▶ / ❚❚** empezar o pausar sin grabar (para ensayar).
+- Al tocar el **botón rojo**: cuenta atrás 3-2-1 (se quita en Ajustes), empieza a grabar y el
+  texto empieza a subir. **Toca el texto** para pausarlo; **arrástralo** para adelantar o
+  volver. La línea con ▶ marca la frase que toca leer.
+- El texto **no sale en el video**, sólo en la pantalla.
+
+### Actualizar la app
+
+LumaCam se actualiza sola desde la versión 0.2.4: al abrirla, si hay una versión nueva sale
+**«Nueva versión… Actualizar»** arriba del visor. También en **Ajustes → Actualizaciones**
+(arriba del todo) está la versión instalada y el botón **Buscar / Actualizar**. La primera vez
+Android pide permitir que LumaCam instale apps; después sólo hay que confirmar.
 
 ### Zoom 0.6x
 
@@ -216,6 +261,27 @@ Marca cada una. Si algo falla, copia el **Diagnóstico** y dime qué pasó.
 - [ ] Cuando haya una versión nueva en la Release: al abrir LumaCam sale «Nueva versión…
       Actualizar» arriba del visor → Permitir (la primera vez) → descarga con % → Android pide
       confirmar → la app se reinicia actualizada.
+
+**Modo DUAL**
+- [ ] Ajustes → ⓘ Diagnóstico: mira la línea "Dos cámaras a la vez (modo DUAL)". Dime qué dice.
+- [ ] DUAL → Foto: ves la cámara trasera y, si tu teléfono lo permite, la frontal en vivo en la
+      ventanita. Tócala: se intercambian. Prueba "Mitades" y "Esquina".
+- [ ] Haz una foto doble: queda en la galería igual que en la pantalla (selfie en espejo, sin
+      partes estiradas ni giradas). Si sale de lado, de cabeza o sin espejo, dímelo.
+- [ ] Si el teléfono no permite las dos a la vez: la foto se hace en dos pasos (trasera y
+      enseguida "¡sonríe!" con la frontal) y se juntan.
+- [ ] DUAL → Video: graba unos segundos (cambia de cámara con ⟲ mientras grabas) y mira que el
+      video tenga sonido y la imagen derecha.
+
+**Modo PRESENTAR**
+- [ ] Al entrar, cambia sola a la cámara frontal y aparece el texto arriba.
+- [ ] ✎ → pega un texto tuyo → Usar. Botón rojo → 3-2-1 → graba y el texto sube.
+- [ ] Ajusta la velocidad con − / + y el tamaño con A− / A+; toca el texto para pausar.
+- [ ] El video guardado no lleva el texto encima.
+
+**Actualizar**
+- [ ] Ajustes → Actualizaciones → Buscar. Cuando haya una versión nueva: Actualizar → (la
+      primera vez) Permitir → Android pide confirmar → la app se reinicia actualizada.
 
 **Controles**
 - [ ] Toca la imagen: aparece el círculo y enfoca/mide ahí.

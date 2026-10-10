@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
 import android.util.Log
+import android.util.Size
 import android.view.Surface
 import androidx.annotation.OptIn
 import androidx.camera.camera2.interop.Camera2CameraInfo
@@ -126,7 +127,9 @@ class DualController(private val context: Context, private val session: CameraSe
             }
         }
         concurrent = false
-        renderer.single = true
+        // Por turnos: en foto la ventanita muestra la última imagen de la otra cámara (se
+        // renueva en cada foto doble); en video se graba sólo la cámara activa.
+        renderer.single = video
         bindSingle(mainSlot)
         return DualBindResult(
             false,
@@ -182,7 +185,10 @@ class DualController(private val context: Context, private val session: CameraSe
                 .setResolutionSelector(
                     ResolutionSelector.Builder()
                         .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
-                        .setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY)
+                        // ~12 MP basta para la foto doble (~6 MP) y la captura es mucho más rápida.
+                        .setResolutionStrategy(
+                            ResolutionStrategy(Size(4032, 3024), ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER),
+                        )
                         .build(),
                 )
                 .build()
@@ -308,7 +314,7 @@ class DualController(private val context: Context, private val session: CameraSe
             return result
         } catch (t: Throwable) {
             shots.forEach { it?.bitmap?.recycle() }
-            if (!concurrent && liveSlot != renderer.mainSlot) runCatching { bindSingle(renderer.mainSlot) }
+            if (!concurrent && liveSlot != main) runCatching { bindSingle(main) }
             throw t
         }
     }

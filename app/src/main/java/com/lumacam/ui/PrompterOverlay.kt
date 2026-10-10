@@ -37,7 +37,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -88,9 +87,12 @@ fun PrompterOverlay(
             val now = withFrameNanos { it }
             val dt = (now - last) / 1_000_000_000f
             last = now
-            val speed = Teleprompter.scrollSpeed(scroll.maxValue.toFloat(), words, wpm)
-            scroll.dispatchRawDelta(speed * dt)
-            if (scroll.maxValue > 0 && scroll.value >= scroll.maxValue) {
+            // Antes de medir el texto, maxValue vale Int.MAX_VALUE: no mover todavía.
+            val range = scroll.maxValue
+            if (range in 1 until Int.MAX_VALUE) {
+                scroll.dispatchRawDelta(Teleprompter.scrollSpeed(range.toFloat(), words, wpm) * dt)
+            }
+            if (range in 1 until Int.MAX_VALUE && scroll.value >= range) {
                 finished()
                 break
             }
@@ -194,8 +196,8 @@ fun ScriptEditorDialog(
     onDismiss: () -> Unit,
 ) {
     val clipboard = LocalClipboardManager.current
-    var editingId by rememberSaveable { mutableStateOf(prompter.script?.id) }
-    var text by rememberSaveable { mutableStateOf(prompter.script?.text.orEmpty()) }
+    var editingId by remember { mutableStateOf(prompter.script?.id) }
+    var text by remember { mutableStateOf(prompter.script?.text.orEmpty()) }
     val words = remember(text) { Teleprompter.wordCount(text) }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(

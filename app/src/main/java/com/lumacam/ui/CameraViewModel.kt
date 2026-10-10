@@ -454,6 +454,8 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         val d = dual ?: return
         if (d.isRecording) stopDualRecording()
         recordTicker?.cancel()
+        // Primero soltar las cámaras y luego el lienzo donde dibujaban.
+        d.unbind()
         d.release()
         dual = null
         _state.update { it.copy(dual = DualUi()) }

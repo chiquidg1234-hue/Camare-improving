@@ -1,5 +1,27 @@
 # PROGRESO — LumaCam
 
+## Sesión 4 (noche del 2026-10-09 al 10): modos DUAL y PRESENTAR
+
+- [x] **DUAL** (estilo BeReal): lienzo OpenGL propio (`dual/DualRenderer`) alimentado por la
+      vista previa de las dos cámaras, con el look en cada una; ventanita redondeada o mitades;
+      tocar para intercambiar; zoom con pellizco. Usa "concurrent camera" de CameraX si el
+      teléfono lo permite; si no, una cámara por turno (foto doble en dos pasos; video de la
+      cámara activa con cambio en plena grabación).
+- [x] Foto doble compuesta en CPU con la misma geometría que la vista previa
+      (`core/dual/DualGeometry`, probada) y el look por cámara; video doble del lienzo con
+      MediaRecorder (1080x1920, audio).
+- [x] **PRESENTAR** (teleprompter): video con la cámara frontal y el guion subiendo cerca de la
+      cámara; velocidad en palabras por minuto con duración estimada, tamaño, espejo, cuenta
+      atrás, pausa al tocar; editor con varios guiones guardados y botón Pegar.
+- [x] Fila de modos de 5 secciones; Ajustes → **Actualizaciones** arriba del todo.
+- [x] 101 pruebas en `core` (15 nuevas: geometría DUAL y cuentas del teleprompter); shaders
+      nuevos compilados y enlazados en WebGL (Chromium).
+
+Pendiente: probar en el teléfono la orientación de las dos cámaras en DUAL (sobre todo la
+frontal), si el X7c permite las dos cámaras a la vez, y el video doble.
+
+---
+
 ## Sesión 3 (2026-10-09, tarde): la descarga del QR se quedaba en «Descargando… 100%»
 
 - [x] Causa (leyendo el código de Chromium): Chrome en Android retiene toda descarga `.apk` al

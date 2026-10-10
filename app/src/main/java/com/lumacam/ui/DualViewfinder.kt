@@ -79,7 +79,8 @@ fun DualControls(state: UiState, vm: CameraViewModel) {
     ) {
         Segmented(listOf("Foto" to !s.dualVideo, "Video" to s.dualVideo), enabled = !busy) { i -> vm.setDualVideo(i == 1) }
         Box(Modifier.padding(horizontal = 6.dp))
-        if (state.dual.concurrent != false) {
+        // Por turnos en video se ve una sola cámara; en foto la distribución sí cuenta.
+        if (state.dual.concurrent != false || !s.dualVideo) {
             Segmented(DualLayout.entries.map { it.label to (it == s.dualLayout) }) { i -> vm.setDualLayout(DualLayout.entries[i]) }
             if (s.dualLayout == DualLayout.PIP) {
                 Box(Modifier.padding(horizontal = 3.dp))

@@ -2,8 +2,10 @@
 
 Cámara para Android (Kotlin, CameraX, OpenGL ES, Jetpack Compose) pensada para el Honor X7c:
 looks en tiempo real (Natural, Cálido, Cine, Vívido, Nocturno) en vista previa y video, foto
-multi-frame con alineación y reducción de ruido, y **modo POSES** que sugiere poses según el
-ángulo de la cámara y dispara solo cuando la pose coincide.
+multi-frame con alineación y reducción de ruido, **modo POSES** que sugiere poses según el
+ángulo de la cámara y dispara solo cuando la pose coincide, **modo DUAL** (cámara trasera y
+frontal juntas, estilo BeReal, en foto y video) y **modo PRESENTAR** (teleprompter: tu discurso
+sube en pantalla mientras te grabas con la cámara frontal).
 
 ## Descargar e instalar
 
